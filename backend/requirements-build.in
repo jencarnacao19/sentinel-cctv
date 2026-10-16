@@ -1,0 +1,3 @@
+# Deliberate build-tool updates are reviewed alongside the generated hash lock.
+setuptools
+wheel

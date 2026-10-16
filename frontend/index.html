@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!--
+      `viewport-fit=cover` lets the app paint under the notch and home indicator;
+      the shell adds the safe-area insets back where they matter.
+      `interactive-widget=resizes-content` keeps a focused field visible when the
+      on-screen keyboard opens instead of letting it slide under the keyboard.
+    -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
+    />
+    <!-- One per scheme, so the browser and the iOS status bar match the surface
+         actually being drawn rather than always the dark one. -->
+    <meta name="theme-color" content="#f7f7f8" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0b0f14" media="(prefers-color-scheme: dark)" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Sentinel" />
+    <meta name="description" content="Sentinel CCTV - local-first video surveillance" />
+    <title>Sentinel CCTV</title>
+    <script src="/theme-init.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

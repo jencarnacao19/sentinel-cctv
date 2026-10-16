@@ -1,0 +1,473 @@
+@import 'tailwindcss';
+
+/* Class-based dark mode: the inline script in index.html decides before paint,
+   so the theme toggle can override the OS preference in both directions. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /*
+    System-first typography.
+
+    The interface should be set in whatever the platform considers its UI face:
+    San Francisco on Apple hardware, Segoe UI Variable on Windows, Roboto on
+    Android. Nothing is bundled and nothing is fetched -- no Apple font is
+    redistributed, and the stack degrades in order rather than falling back to
+    a generic sans on the first miss.
+  */
+  /*
+    System-first typography.
+    Apple San Francisco on Apple hardware, with clean modern fallbacks.
+  */
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'SF Pro',
+    'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-mono:
+    ui-monospace, 'SF Mono', Monaco, Menlo, Consolas, 'Liberation Mono', monospace;
+
+  /*
+    Apple-inspired radius scale: restrained squircle feel.
+  */
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+  --radius-3xl: 1.5rem;
+
+  /* Semantic aliases */
+  --radius-control: var(--radius-md);
+  --radius-input: var(--radius-md);
+  --radius-card: var(--radius-lg);
+  --radius-tile: var(--radius-lg);
+  --radius-sheet: var(--radius-3xl);
+
+  /* Apple-standard motion timing */
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-sheet: 260ms;
+
+  /* iOS standard deceleration easing */
+  --ease-emphasised: cubic-bezier(0.32, 0.72, 0, 1);
+
+}
+
+/*
+  Light theme: authentic Apple secondary grouped surface and crisp labels.
+*/
+:root {
+  --color-bg: oklch(96% 0.003 250);
+  --color-bg-subtle: oklch(93% 0.005 250);
+  --color-surface: oklch(100% 0 0);
+  --color-surface-raised: oklch(98.5% 0.002 250);
+  --color-surface-hover: oklch(94% 0.006 250);
+  --color-border: oklch(88% 0.006 250);
+  --color-border-strong: oklch(76% 0.01 250);
+
+  --color-fg: oklch(18% 0.012 255);
+  --color-fg-muted: oklch(46% 0.012 255);
+  --color-fg-subtle: oklch(62% 0.01 255);
+
+  --color-accent: oklch(54% 0.16 250);
+  --color-accent-fg: oklch(100% 0 0);
+  --color-accent-subtle: oklch(93% 0.035 250);
+
+  --color-success: oklch(56% 0.16 150);
+  --color-warning: oklch(66% 0.16 65);
+  --color-danger: oklch(58% 0.22 25);
+  --color-danger-fg: oklch(100% 0 0);
+
+  --color-recording: oklch(58% 0.22 25);
+  --color-motion: oklch(66% 0.16 65);
+  --color-offline: oklch(58% 0.012 255);
+
+  --material-chrome: color-mix(in oklab, var(--color-surface) 82%, transparent);
+  --material-scrim: oklch(0% 0 0 / 0.35);
+
+  --color-surface-subtle: oklch(94.5% 0.004 250);
+
+  /* Video overlay tokens — always dark regardless of the app theme */
+  --color-media-bg: oklch(8% 0.006 255);
+  --color-media-surface: oklch(12% 0.008 255);
+  --color-media-border: oklch(26% 0.012 255 / 0.4);
+  --color-media-fg: oklch(98% 0.002 255);
+  --color-media-fg-muted: oklch(80% 0.006 255);
+  --color-media-fg-subtle: oklch(60% 0.008 255);
+
+  --shadow-card: 0 1px 3px oklch(0% 0 0 / 0.04);
+  --shadow-raised: 0 2px 6px oklch(0% 0 0 / 0.08);
+  --shadow-popover: 0 12px 28px oklch(0% 0 0 / 0.14);
+  --shadow-sheet: 0 -8px 32px oklch(0% 0 0 / 0.12);
+}
+
+/*
+  Dark theme: authentic Apple OLED/grouped dark mode.
+  Deep near-black foundation, subtle grouped surfaces, restrained separators.
+*/
+.dark {
+  --color-bg: oklch(12% 0.005 250);
+  --color-bg-subtle: oklch(15% 0.007 250);
+  --color-surface: oklch(18.5% 0.009 250);
+  --color-surface-raised: oklch(22% 0.011 250);
+  --color-surface-hover: oklch(26% 0.013 250);
+  --color-border: oklch(28% 0.01 250);
+  --color-border-strong: oklch(38% 0.014 250);
+
+  --color-fg: oklch(98% 0.002 255);
+  --color-fg-muted: oklch(75% 0.01 255);
+  --color-fg-subtle: oklch(58% 0.012 255);
+
+  --color-accent: oklch(68% 0.16 250);
+  --color-accent-fg: oklch(12% 0.01 250);
+  --color-accent-subtle: oklch(26% 0.04 250);
+
+  --color-success: oklch(72% 0.17 150);
+  --color-warning: oklch(76% 0.17 65);
+  --color-danger: oklch(66% 0.22 25);
+  --color-danger-fg: oklch(12% 0.01 250);
+
+  --color-recording: oklch(66% 0.22 25);
+  --color-motion: oklch(76% 0.17 65);
+  --color-offline: oklch(50% 0.012 255);
+
+  --material-chrome: color-mix(in oklab, var(--color-surface) 78%, transparent);
+  --material-scrim: oklch(0% 0 0 / 0.65);
+
+  --shadow-card: none;
+  --shadow-raised: 0 2px 8px oklch(0% 0 0 / 0.35);
+  --shadow-popover: 0 16px 36px oklch(0% 0 0 / 0.55);
+  --shadow-sheet: 0 -10px 40px oklch(0% 0 0 / 0.6);
+
+  --color-surface-subtle: oklch(16.5% 0.008 250);
+
+  --color-media-bg: oklch(7% 0.005 255);
+  --color-media-surface: oklch(11% 0.007 255);
+  --color-media-border: oklch(24% 0.01 255 / 0.5);
+  --color-media-fg: oklch(96% 0.003 255);
+  --color-media-fg-muted: oklch(72% 0.008 255);
+  --color-media-fg-subtle: oklch(52% 0.009 255);
+}
+
+/* Personal palettes change surfaces and accents, not recording/alarm semantics. */
+:root[data-palette='ocean'] {
+  --color-bg: #edf4f8; --color-bg-subtle: #e3edf3;
+  --color-surface: #fafdff; --color-surface-raised: #f2f8fb;
+  --color-surface-hover: #e5f0f5; --color-surface-subtle: #eaf2f7;
+  --color-border: #cfdee8; --color-border-strong: #8eaab9;
+  --color-accent: #17668d; --color-accent-fg: #fff; --color-accent-subtle: #dceef7;
+}
+:root.dark[data-palette='ocean'] {
+  --color-bg: #0b151c; --color-bg-subtle: #101e28;
+  --color-surface: #14242f; --color-surface-raised: #1b303d;
+  --color-surface-hover: #223c4c; --color-surface-subtle: #10212c;
+  --color-border: #2b4352; --color-border-strong: #476776;
+  --color-accent: #7bc4e8; --color-accent-fg: #0b1c25; --color-accent-subtle: #203e51;
+}
+:root[data-palette='forest'] {
+  --color-bg: #eff4f0; --color-bg-subtle: #e3ece5;
+  --color-surface: #fcfefb; --color-surface-raised: #f4f8f3;
+  --color-surface-hover: #e5efe6; --color-surface-subtle: #eaf1e9;
+  --color-border: #d1ded3; --color-border-strong: #95ae9b;
+  --color-accent: #286b50; --color-accent-fg: #fff; --color-accent-subtle: #dceee1;
+}
+:root.dark[data-palette='forest'] {
+  --color-bg: #101712; --color-bg-subtle: #162019;
+  --color-surface: #1b2920; --color-surface-raised: #24352a;
+  --color-surface-hover: #2d4033; --color-surface-subtle: #17231b;
+  --color-border: #35483b; --color-border-strong: #546e5c;
+  --color-accent: #8bcba7; --color-accent-fg: #102417; --color-accent-subtle: #294a36;
+}
+:root[data-palette='sand'] {
+  --color-bg: #f5f0e8; --color-bg-subtle: #eee6da;
+  --color-surface: #fffcf7; --color-surface-raised: #faf5ed;
+  --color-surface-hover: #efe5d7; --color-surface-subtle: #f2eadf;
+  --color-border: #e0d4c4; --color-border-strong: #b5a38b;
+  --color-accent: #82552c; --color-accent-fg: #fff; --color-accent-subtle: #efe0cb;
+}
+:root.dark[data-palette='sand'] {
+  --color-bg: #191612; --color-bg-subtle: #211d17;
+  --color-surface: #2a251e; --color-surface-raised: #352f25;
+  --color-surface-hover: #40382b; --color-surface-subtle: #241f19;
+  --color-border: #4c4234; --color-border-strong: #73614d;
+  --color-accent: #dbb781; --color-accent-fg: #251b0e; --color-accent-subtle: #4b3a23;
+}
+
+@theme inline {
+  --color-bg: var(--color-bg);
+  --color-bg-subtle: var(--color-bg-subtle);
+  --color-surface: var(--color-surface);
+  --color-surface-raised: var(--color-surface-raised);
+  --color-surface-hover: var(--color-surface-hover);
+  --color-border: var(--color-border);
+  --color-border-strong: var(--color-border-strong);
+  --color-fg: var(--color-fg);
+  --color-fg-muted: var(--color-fg-muted);
+  --color-fg-subtle: var(--color-fg-subtle);
+  --color-accent: var(--color-accent);
+  --color-accent-fg: var(--color-accent-fg);
+  --color-accent-subtle: var(--color-accent-subtle);
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
+  --color-danger: var(--color-danger);
+  --color-danger-fg: var(--color-danger-fg);
+  --color-recording: var(--color-recording);
+  --color-motion: var(--color-motion);
+  --color-offline: var(--color-offline);
+  --color-surface-subtle: var(--color-surface-subtle);
+  --color-media-bg: var(--color-media-bg);
+  --color-media-surface: var(--color-media-surface);
+  --color-media-border: var(--color-media-border);
+  --color-media-fg: var(--color-media-fg);
+  --color-media-fg-muted: var(--color-media-fg-muted);
+  --color-media-fg-subtle: var(--color-media-fg-subtle);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scrollbar-gutter: stable;
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    /*
+      Safe areas are handled by the surfaces that touch the edges -- the
+      navigation bar, the tab bar, sheets -- rather than by padding the whole
+      document. Padding the body left the strip behind the notch unpainted and
+      let a sticky header settle below it instead of under it.
+    */
+    padding: 0;
+    /* iOS paints a grey flash on every tap without this; the app draws its own
+       pressed states. */
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Headings inherit weight from the type scale rather than the browser. */
+  h1,
+  h2,
+  h3,
+  h4 {
+    text-wrap: balance;
+  }
+
+  ::selection {
+    background: var(--color-accent-subtle);
+    color: var(--color-fg);
+  }
+
+  /* Remove the 300ms tap delay on interactive controls without disabling
+     pinch-to-zoom. Canvas tools opt into their own touch behaviour. */
+  button,
+  a,
+  input,
+  select,
+  [role='button'],
+  [role='radio'],
+  [role='option'] {
+    touch-action: manipulation;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  /*
+    Tabular figures where a number is read as a measurement -- a timestamp, a
+    byte count, a percentage -- and nowhere else. Setting it on `body` made
+    every digit in every sentence monospaced, which is not what the platform
+    faces do.
+  */
+  time,
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-border-strong);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-fg-subtle);
+    background-clip: content-box;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer utilities {
+  /*
+    Safe-area helpers.
+
+    Written as utilities rather than repeated `env()` arbitrary values so the
+    intent is legible at the call site and a future inset change is one edit.
+    `max()` keeps a sensible minimum on hardware that reports no inset at all.
+  */
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .px-safe {
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+  .inset-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+  /* A sheet's footer: never flush against the home indicator. */
+  .pb-safe-gutter {
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 1rem);
+  }
+  .mb-safe {
+    margin-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /*
+    The one scroll container inside a dialog or sheet.
+
+    `overscroll-contain` is what stops a scroll gesture that reaches the end of
+    the body from continuing into the page behind it, which on iOS is the
+    difference between a sheet that feels attached and one that drags the whole
+    site around underneath it.
+  */
+  .scroll-region {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: stable;
+  }
+
+  /* Keeps a focused field clear of a pinned header or the mobile keyboard when
+     the browser scrolls it into view. */
+  .scroll-comfort {
+    scroll-margin-top: 4.5rem;
+    scroll-margin-bottom: 6rem;
+  }
+
+  /*
+    Chrome material: a navigation bar or tab bar that content passes under.
+    The opaque fallback is applied first so a browser without backdrop-filter
+    support, or a viewer who asked for reduced transparency, still gets a
+    legible bar rather than text over video.
+  */
+  .material-chrome {
+    background-color: var(--color-surface);
+  }
+
+  @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+    .material-chrome {
+      background-color: var(--material-chrome);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      backdrop-filter: saturate(180%) blur(20px);
+    }
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    .material-chrome {
+      background-color: var(--color-surface);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+
+  /* Media controls remain opaque enough to read over every camera image. */
+  .material-media {
+    background-color: var(--color-media-surface);
+  }
+
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      var(--color-bg-subtle) 25%,
+      var(--color-surface-raised) 37%,
+      var(--color-bg-subtle) 63%
+    );
+    background-size: 400% 100%;
+    animation: skeleton-sweep 1.4s ease-in-out infinite;
+  }
+
+  @keyframes skeleton-sweep {
+    0% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0 50%;
+    }
+  }
+
+  .pulse-recording {
+    animation: pulse-recording 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  @keyframes pulse-recording {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.35;
+    }
+  }
+
+  /* Sheet and dialog entrances. Small, purposeful, and only ever explaining
+     where the surface came from. */
+  @keyframes sheet-rise {
+    from {
+      transform: translateY(1.25rem);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .animate-sheet-rise {
+    animation: sheet-rise var(--duration-sheet) var(--ease-emphasised);
+  }
+
+  .animate-fade-in {
+    animation: fade-in var(--duration-base) ease-out;
+  }
+}

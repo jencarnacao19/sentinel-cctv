@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+dev-dist/
+coverage/
+
+# Build artefacts
+# The Docker build copies the compiled SPA here; it is never committed.
+backend/static/
+
+# Runtime data and secrets
+.env
+data/
+recordings/
+*.db
+*.db-shm
+*.db-wal
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
