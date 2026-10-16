@@ -1,0 +1,79 @@
+# Sentinel CCTV.
+#
+# A normal install never needs this file edited: the Proxmox installer writes
+# the two host paths below and everything else is configured in the browser.
+#
+#   docker compose up -d
+#   open http://<host>:8090
+
+services:
+  sentinel:
+    image: ghcr.io/jencarnacao19/sentinel-cctv:latest
+    # Uncomment to build locally instead of pulling the published image.
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+    container_name: sentinel
+    restart: unless-stopped
+
+    # WS-Discovery is link-local multicast. Host networking lets Sentinel
+    # probe the real LAN interface instead of Docker's private 172.x bridge.
+    # The API still exposes only 8090, WebRTC only 8555, and go2rtc's
+    # unauthenticated API/RTSP listeners remain bound to 127.0.0.1.
+    network_mode: host
+
+    volumes:
+      # Database, thumbnails, snapshots and the local encryption secret.
+      - sentinel-data:/data
+      # Recordings. Point this at your dedicated storage; see docs/storage.md.
+      # A bind mount is deliberate here -- recordings should outlive the container.
+      - ./recordings:/recordings
+
+    environment:
+      # Display timezone. Timestamps are always stored in UTC.
+      TZ: ${TZ:-Europe/Lisbon}
+      SENTINEL_TIMEZONE: ${TZ:-Europe/Lisbon}
+      SENTINEL_LOG_LEVEL: ${SENTINEL_LOG_LEVEL:-INFO}
+      # Optional footage operator. Administration always keeps its normal
+      # login even when this is enabled. See README "Restricted viewer".
+      SENTINEL_VIEWER_ENABLED: ${SENTINEL_VIEWER_ENABLED:-false}
+      SENTINEL_VIEWER_TRUSTED_HOSTS: ${SENTINEL_VIEWER_TRUSTED_HOSTS:-}
+      # Access SSO requires cryptographic validation; empty settings deny that
+      # grant only. Normal Sentinel login and independent viewer keys remain.
+      SENTINEL_VIEWER_CLOUDFLARE_ISSUER: ${SENTINEL_VIEWER_CLOUDFLARE_ISSUER:-}
+      SENTINEL_VIEWER_CLOUDFLARE_AUDIENCES: ${SENTINEL_VIEWER_CLOUDFLARE_AUDIENCES:-}
+      SENTINEL_VIEWER_KEY: ${SENTINEL_VIEWER_KEY:-}
+      # Exact proxy networks allowed to supply CF-Connecting-IP. Never use a
+      # broad LAN range: an arbitrary LAN client could then forge an address.
+      SENTINEL_TRUSTED_PROXY_CIDRS: ${SENTINEL_TRUSTED_PROXY_CIDRS:-}
+      # Extra HTTPS origins allowed to embed the interface. Keep this to the
+      # exact Home Assistant origin; never use a wildcard.
+      SENTINEL_FRAME_ANCESTORS: ${SENTINEL_FRAME_ANCESTORS:-}
+      SENTINEL_COOKIE_SECURE: ${SENTINEL_COOKIE_SECURE:-false}
+      # Experimental event-based battery cameras. No RTSP recorder is created;
+      # Direct Stream and clip downloads happen only on explicit LAN requests.
+      SENTINEL_ENABLE_TAPO_BATTERY_PROVIDER: ${SENTINEL_ENABLE_TAPO_BATTERY_PROVIDER:-false}
+
+    # FFmpeg opens a handful of file descriptors per camera; the default soft
+    # limit of 1024 is tight once you pass roughly twenty streams.
+    ulimits:
+      nofile:
+        soft: 8192
+        hard: 8192
+
+    # Recording is the workload that must not be starved. These are ceilings,
+    # not reservations, and can be raised for more cameras.
+    deploy:
+      resources:
+        limits:
+          memory: 3g
+
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:8090/api/v1/system/health']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  sentinel-data:

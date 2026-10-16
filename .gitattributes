@@ -1,0 +1,24 @@
+# Deterministic line endings regardless of the platform a contributor is on.
+#
+# LF everywhere matters beyond tidiness here: install-proxmox.sh and the
+# container entrypoint are executed by /bin/sh, and a CRLF shebang line fails
+# with a confusing "bad interpreter" error.
+
+* text=auto eol=lf
+
+# Never touched.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.mp4 binary
+*.db binary
+
+# Shell scripts must stay LF even if a contributor's editor disagrees.
+*.sh text eol=lf
+Dockerfile text eol=lf
+
+# Generated; keep them out of diffs and language statistics.
+frontend/package-lock.json linguist-generated=true -diff

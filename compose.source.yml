@@ -1,0 +1,14 @@
+# Build Sentinel from the private source checkout instead of pulling GHCR.
+# Use together with compose.yml:
+#   docker compose -f compose.yml -f compose.source.yml up -d --build
+
+services:
+  sentinel:
+    image: sentinel-cctv:local
+    pull_policy: never
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - sentinel-data:/data
+      - /recordings:/recordings

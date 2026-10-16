@@ -1,0 +1,23 @@
+# Keep the build context small and free of anything machine-specific.
+.git/
+.github/
+**/node_modules/
+**/dist/
+**/dev-dist/
+**/.venv/
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/coverage/
+backend/static/
+data/
+recordings/
+*.db
+*.db-shm
+*.db-wal
+.env
+docs/
+**/tests/
+**/*.md
