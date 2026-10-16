@@ -1,0 +1,99 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Sentinel CCTV",
+        "description": "Enter the address of your Sentinel server and an API token. Create one in Sentinel under Settings → API tokens; it is shown only once.",
+        "data": {
+          "url": "Server address",
+          "token": "API token"
+        },
+        "data_description": {
+          "url": "For example http://192.168.50.50:8090",
+          "token": "Starts with sctv_"
+        }
+      },
+      "zeroconf_confirm": {
+        "title": "Sentinel CCTV found",
+        "description": "Found {name} at {host}. Enter an API token to connect. Create one in Sentinel under Settings → API tokens; it is shown only once.",
+        "data": {
+          "token": "API token"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reconnect to Sentinel CCTV",
+        "description": "The token for {name} is no longer accepted. It was probably revoked in Sentinel. Enter a new one.",
+        "data": {
+          "token": "API token"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not reach the server. Check the address, and that Sentinel is running.",
+      "invalid_auth": "That token was rejected. Check it was copied in full, and that it has not been revoked.",
+      "unsupported_version": "This Sentinel server is too old for this integration. Update Sentinel and try again."
+    },
+    "abort": {
+      "already_configured": "This Sentinel server is already set up.",
+      "already_in_progress": "This Sentinel server is already being set up.",
+      "cannot_connect": "Could not reach the server that announced itself.",
+      "reauth_successful": "Reconnected to Sentinel.",
+      "unique_id_mismatch": "That is a different Sentinel server, not the one being reconnected."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Sentinel CCTV options",
+        "description": "Sentinel pushes changes over a WebSocket, so this interval only matters while that connection is down.",
+        "data": {
+          "scan_interval": "Fallback poll interval (seconds)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "motion": {
+        "name": "Motion"
+      }
+    },
+    "sensor": {
+      "storage_used": {
+        "name": "Storage used"
+      },
+      "storage_free": {
+        "name": "Storage free"
+      },
+      "recordings_size": {
+        "name": "Recordings size"
+      },
+      "retention_days": {
+        "name": "Retention"
+      },
+      "cameras_online": {
+        "name": "Cameras online"
+      },
+      "recording_state": {
+        "name": "Recording",
+        "state": {
+          "recording": "Recording",
+          "idle": "Idle",
+          "off": "Off",
+          "unavailable": "Unavailable"
+        }
+      },
+      "bitrate": {
+        "name": "Bitrate"
+      },
+      "motion_events_total": {
+        "name": "Motion events total"
+      }
+    },
+    "switch": {
+      "recording": {
+        "name": "Recording"
+      }
+    }
+  }
+}

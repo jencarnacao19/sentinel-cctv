@@ -1,12 +1,13 @@
 # Home Assistant integration contract
 
-This is the interface `sentinel-home-assistant` builds against. It is written
-from the server side (`sentinel-cctv`, phase 9) but describes exactly what the
-integration repository should call and what it will receive. If the two
-disagree, **this file is wrong and should be fixed** — the integration
-repository already has a working client (`custom_components/sentinel/api.py`,
-`models.py`, `coordinator.py`) built against an earlier draft of this contract,
-and the shapes below were checked against that code so the two line up.
+This is the interface the Home Assistant integration in
+[`custom_components/sentinel`](../../../custom_components/sentinel) builds
+against. It is written from the server side but describes exactly what the
+integration should call and what it will receive. If the two disagree, **this
+file is wrong and should be fixed** — the integration's client
+(`custom_components/sentinel/api.py`, `models.py`, `coordinator.py`) was built
+against an earlier draft of this contract, and the shapes below were checked
+against that code so the two line up.
 
 Everything here lives under the existing `/api/v1` prefix and the existing
 authentication scheme (Argon2id sessions for the browser, revocable

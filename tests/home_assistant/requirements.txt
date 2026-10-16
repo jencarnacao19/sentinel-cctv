@@ -1,0 +1,18 @@
+# Test-only dependencies. Not shipped with the integration itself -- HACS and
+# Home Assistant only ever install what manifest.json declares.
+#
+# pytest-homeassistant-custom-component vendors a matching pinned version of
+# Home Assistant core itself, which is why nothing here pins "homeassistant"
+# directly: doing so would fight the plugin's own resolution and could pull a
+# core version its fixtures were never tested against.
+pytest-homeassistant-custom-component
+pytest-asyncio
+pytest-cov
+# Older Home Assistant test-harness releases import ZeroconfServiceInfo from
+# homeassistant.components.zeroconf, whose optional runtime dependency is not
+# pulled in by the harness package itself.
+zeroconf
+# pycares 4.9+ starts a process-global DNS shutdown thread. The current
+# Home Assistant 2025.1 test harness rejects that legitimate background thread
+# as a leak; 4.8 remains API-compatible with its pinned aiodns release.
+pycares==4.8.0

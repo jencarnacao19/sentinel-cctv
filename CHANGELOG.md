@@ -11,6 +11,11 @@ requirements are described in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 
 ### Added
 
+- **The Home Assistant integration ships with the server.** It now lives in
+  this repository under `custom_components/sentinel` and installs through HACS
+  as a custom repository. It still needs a running Sentinel server; see the
+  [Home Assistant guide](docs/home-assistant.md).
+
 - **Administrators can manage large motion-event libraries explicitly.** The
   Events page groups history by camera and adds age/duration filters, exact
   row/file/byte preview, typed confirmation, background progress, cancellation

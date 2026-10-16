@@ -5,7 +5,7 @@ Everything a Home Assistant integration needs beyond the ordinary API
 ``CONTRACT.md``) lives here: a stable install identity, the network
 announcement, and the one new endpoint that ties them together. See
 ``CONTRACT.md`` in this directory for the full request/response contract the
-``sentinel-home-assistant`` repository is built against.
+integration in ``custom_components/sentinel`` is built against.
 """
 
 from __future__ import annotations
