@@ -122,7 +122,7 @@ main hostname and administration under the normal Access policy.
 
 The tunnel-based embed does not require port forwarding or split DNS.
 
-Enable the viewer settings from the root README, add the Home Assistant HTTPS
+Enable the viewer settings from the [remote access guide](remote-access.md), add the Home Assistant HTTPS
 origin to `SENTINEL_FRAME_ANCESTORS`, and put the random `#viewer_key=...`
 fragment only in the Home Assistant Webpage dashboard. The key belongs in the
 private deployment `.env` and dashboard configuration; never place it in Git,
