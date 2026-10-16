@@ -9,6 +9,8 @@ requirements are described in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-17
+
 ### Added
 
 - **The Home Assistant integration ships with the server.** It now lives in
@@ -444,4 +446,5 @@ requirements are described in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
   mypy, pytest, eslint, tsc, vitest, the production build and an image build
   gated on the container actually reporting healthy.
 
-[Unreleased]: https://github.com/jencarnacao19/sentinel-cctv/commits/main
+[Unreleased]: https://github.com/jencarnacao19/sentinel-cctv/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/jencarnacao19/sentinel-cctv/releases/tag/v0.1.0
