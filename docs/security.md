@@ -263,5 +263,5 @@ Said plainly, so nothing here is a surprise later:
 - **Nothing in this build has been reviewed by anyone outside this project.**
   No third-party security audit has been done.
 
-If you find an actual vulnerability, the project's stated preference (see
-`README.md`) is a private security advisory, not a public issue.
+If you find a vulnerability, follow the [security policy](../SECURITY.md) for
+the security maintainer and confidential reporting instructions.
