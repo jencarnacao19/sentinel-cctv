@@ -1,5 +1,39 @@
 # Security
 
+## At a glance
+
+- Passwords are hashed with **Argon2id**.
+- Camera credentials are **encrypted at rest** with a key derived from a local
+  secret created at install time, stored `0600`. They are never returned by the
+  API, never rendered in the interface and never written to a log.
+- Every log line passes through a **redaction filter** that removes RTSP
+  userinfo, `password=`/`token:` pairs, `Authorization` values and Sentinel API
+  tokens.
+- Administrator sessions use `HttpOnly; SameSite=Lax` cookies. The separate
+  embedded-viewer cookie is `HttpOnly; Secure; SameSite=None` so an HTTPS Home
+  Assistant iframe can use it; its narrow capability still cannot reach any
+  administration route. A header/WebSocket-subprotocol fallback keeps the
+  embedded viewer working when an iOS WebView blocks that cross-site cookie;
+  neither mechanism is accepted by administration dependencies.
+- Restricted footage access is a separate capability, not a user or API token.
+  Its responses omit RTSP URLs, hosts, usernames, recording policy and settings;
+  the Home Assistant viewer key arrives in a URL fragment and is never accepted
+  by an administration dependency. It may play/download footage and create
+  protected exports, but cannot change configuration or delete saved footage.
+- CORS is closed by default — the interface is served from the same origin as
+  the API.
+- Sign-in and token creation are rate limited.
+- **Settings → Public login protection** can persistently block a verified
+  Cloudflare visitor address after a configurable number of failed
+  administrator sign-ins. The default threshold is one and the duration can be
+  permanent or timed. Sentinel accepts `CF-Connecting-IP` only from an exact
+  `SENTINEL_TRUSTED_PROXY_CIDRS` peer, never from arbitrary LAN traffic. The
+  block applies only to sign-in on the configured public hostname; direct LAN
+  login remains the recovery path, and the admin panel lists and removes blocks.
+- The API binds to the LAN only. Sentinel does not configure port forwarding and
+  does not talk to your router. For remote access, use the VPN or reverse proxy
+  you already trust.
+
 ## The threat model this product actually has
 
 Sentinel is built for one situation: a single device on a home LAN, watched

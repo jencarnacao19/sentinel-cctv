@@ -3,7 +3,7 @@
 > **This integration needs a running Sentinel CCTV server.** It does not record
 > or connect to cameras on its own: it connects to a Sentinel server installed
 > from this repository and brings its cameras into Home Assistant. Install and
-> set up the server first ([installation](../README.md#installation)), then add
+> set up the server first ([quick start](../README.md#quick-start)), then add
 > the integration.
 
 The integration lives in [`custom_components/sentinel`](../custom_components/sentinel).
