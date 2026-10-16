@@ -439,8 +439,8 @@ cd frontend && npm run lint && npx tsc -b && npm test && npm run build
   does not talk to your router. For remote access, use the VPN or reverse proxy
   you already trust.
 
-Found a security problem? Please open a private security advisory on GitHub
-rather than a public issue.
+Found a security problem? See the [security policy](SECURITY.md) for the
+security maintainer and confidential reporting instructions.
 
 ## Licence
 
