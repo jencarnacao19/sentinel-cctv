@@ -6,7 +6,8 @@
 
 **Local-first video surveillance for RTSP cameras.**
 Continuous recording, traditional motion detection, a real timeline, and a
-native Home Assistant integration. Runs locally without a GPU.
+[native Home Assistant integration](#home-assistant-integration). Runs locally
+without a GPU.
 
 </div>
 
@@ -119,6 +120,25 @@ Once the image configured in `compose.yml` is available from your registry,
 you can use `docker compose up -d` without the source-build override.
 
 Then open `http://<host>:8090` and create your administrator account.
+
+### Home Assistant integration
+
+> **The Home Assistant integration needs this Sentinel server.** It does not
+> record or connect to cameras by itself: it connects to a running Sentinel
+> server and brings its cameras into Home Assistant. Install the server first,
+> using one of the methods above.
+
+The integration lives in this repository under
+[`custom_components/sentinel`](custom_components/sentinel). Install it through
+HACS: **HACS → three-dot menu → Custom repositories**, add
+`https://github.com/jencarnacao19/sentinel-cctv` with category **Integration**,
+install **Sentinel CCTV** and restart Home Assistant. Sentinel is then
+discovered automatically, or can be added under **Settings → Devices &
+services** with an API token created in Sentinel.
+
+Cameras appear with snapshots, motion sensors, recording status and a
+recording switch. See the [Home Assistant guide](docs/home-assistant.md) for
+manual installation, the embedded dashboard and troubleshooting.
 
 ### Restricted footage operator
 

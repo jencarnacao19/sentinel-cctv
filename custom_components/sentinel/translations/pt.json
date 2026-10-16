@@ -1,0 +1,99 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Ligar ao Sentinel CCTV",
+        "description": "Indica o endereço do teu servidor Sentinel e um token de API. Cria um no Sentinel em Definições → Tokens de API; só é mostrado uma vez.",
+        "data": {
+          "url": "Endereço do servidor",
+          "token": "Token de API"
+        },
+        "data_description": {
+          "url": "Por exemplo http://192.168.1.50:8090",
+          "token": "Começa por sctv_"
+        }
+      },
+      "zeroconf_confirm": {
+        "title": "Sentinel CCTV encontrado",
+        "description": "Encontrado {name} em {host}. Indica um token de API para ligar. Cria um no Sentinel em Definições → Tokens de API; só é mostrado uma vez.",
+        "data": {
+          "token": "Token de API"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Voltar a ligar ao Sentinel CCTV",
+        "description": "O token de {name} deixou de ser aceite. Provavelmente foi revogado no Sentinel. Indica um novo.",
+        "data": {
+          "token": "Token de API"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Não foi possível contactar o servidor. Verifica o endereço e se o Sentinel está a correr.",
+      "invalid_auth": "O token foi recusado. Confirma que foi copiado por inteiro e que não foi revogado.",
+      "unsupported_version": "Este servidor Sentinel é demasiado antigo para esta integração. Atualiza o Sentinel e tenta de novo."
+    },
+    "abort": {
+      "already_configured": "Este servidor Sentinel já está configurado.",
+      "already_in_progress": "Este servidor Sentinel já está a ser configurado.",
+      "cannot_connect": "Não foi possível contactar o servidor que se anunciou.",
+      "reauth_successful": "Ligação ao Sentinel reposta.",
+      "unique_id_mismatch": "Esse é um servidor Sentinel diferente, não aquele que estavas a voltar a ligar."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opções do Sentinel CCTV",
+        "description": "O Sentinel envia as alterações por WebSocket, por isso este intervalo só conta enquanto essa ligação estiver em baixo.",
+        "data": {
+          "scan_interval": "Intervalo de recurso (segundos)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "motion": {
+        "name": "Movimento"
+      }
+    },
+    "sensor": {
+      "storage_used": {
+        "name": "Espaço utilizado"
+      },
+      "storage_free": {
+        "name": "Espaço livre"
+      },
+      "recordings_size": {
+        "name": "Tamanho das gravações"
+      },
+      "retention_days": {
+        "name": "Retenção"
+      },
+      "cameras_online": {
+        "name": "Câmaras online"
+      },
+      "recording_state": {
+        "name": "Gravação",
+        "state": {
+          "recording": "A gravar",
+          "idle": "Parada",
+          "off": "Desligada",
+          "unavailable": "Indisponível"
+        }
+      },
+      "bitrate": {
+        "name": "Débito"
+      },
+      "motion_events_total": {
+        "name": "Total de movimentos"
+      }
+    },
+    "switch": {
+      "recording": {
+        "name": "Gravação"
+      }
+    }
+  }
+}

@@ -85,6 +85,51 @@ jobs:
       - name: Build
         run: npm run build
 
+  home-assistant:
+    name: Home Assistant integration
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: tests/home_assistant/requirements.txt
+
+      - name: Install dependencies
+        run: pip install ruff -r tests/home_assistant/requirements.txt
+
+      - name: Lint (ruff)
+        run: ruff check custom_components tests/home_assistant
+
+      - name: Format check (ruff)
+        run: ruff format --check custom_components tests/home_assistant
+
+      # The Home Assistant test harness needs Linux: it skips itself on Windows.
+      - name: Tests (pytest)
+        working-directory: tests/home_assistant
+        run: pytest --cov=custom_components.sentinel --cov-report=term-missing
+
+  hassfest:
+    name: hassfest
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: home-assistant/actions/hassfest@master
+
+  hacs:
+    name: HACS validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hacs/action@main
+        with:
+          category: integration
+
   docker:
     name: Docker image
     runs-on: ubuntu-latest

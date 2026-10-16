@@ -107,7 +107,8 @@ not automatically pruned. Reinstall the helper after updating this repository:
 ## Home Assistant integration
 
 Create a long-lived API token under **Sentinel → Settings → API tokens**, then
-install the separate `sentinel-home-assistant` repository. Use
+install the integration from this repository
+([Home Assistant guide](home-assistant.md)). Use
 `http://<LXC-IP>:8090` when automatic mDNS discovery does not cross the network
 boundary.
 
