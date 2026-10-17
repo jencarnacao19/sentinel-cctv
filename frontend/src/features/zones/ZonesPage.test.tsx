@@ -53,6 +53,29 @@ function stubRoutes(routes: Record<string, Handler>) {
   return fetchMock
 }
 
+function zoneJson(overrides: Record<string, unknown>): Record<string, unknown> {
+  return {
+    kind: 'detect',
+    enabled: true,
+    sensitivity: null,
+    points: [
+      [0, 0],
+      [1, 0],
+      [1, 1],
+    ],
+    ...overrides,
+  }
+}
+
+/** The server's answer to a PUT: the zones as sent, new ones given an id. */
+function echoWithIds(init: RequestInit): Response {
+  const body = JSON.parse(bodyText(init.body)) as { zones: Record<string, unknown>[] }
+  return json({
+    camera_id: 'cam-1',
+    zones: body.zones.map((zone, index) => ({ id: `zsaved${index}`, ...zone })),
+  })
+}
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -148,22 +171,24 @@ describe('ZonesPage — malformed server data', () => {
         json({
           camera_id: 'cam-1',
           zones: [
-            [
-              [0, 0],
-              [1, 0],
-              [1, 1],
-            ], // valid triangle -- kept
-            [
-              [0, 0],
-              [1, 0],
-            ], // only two points -- not a polygon
-            'not-a-polygon', // not an array at all
-            null, // not an array at all
-            [
-              [0, 0],
-              [2, 2], // out of the 0-1 range -- dropped, leaving only 2 usable points
-              [1, 1],
-            ],
+            zoneJson({ id: 'z1', name: 'Zone 1' }), // valid triangle -- kept
+            zoneJson({
+              id: 'z2',
+              points: [
+                [0, 0],
+                [1, 0],
+              ],
+            }), // only two points -- not a polygon
+            'not-a-zone', // not an object at all
+            null, // not an object at all
+            zoneJson({
+              id: 'z3',
+              points: [
+                [0, 0],
+                [2, 2], // out of the 0-1 range -- dropped, leaving only 2 usable points
+                [1, 1],
+              ],
+            }),
           ],
         }),
     })
@@ -197,7 +222,7 @@ describe('ZonesPage — malformed server data', () => {
 
     expect(await screen.findByRole('group', { name: /Front door/ })).toBeInTheDocument()
     expect(
-      screen.getByText('No zones yet. Use "New zone" above to draw the first one.'),
+      screen.getByText('No zones yet. Use the button above the picture to draw the first one.'),
     ).toBeInTheDocument()
     expect(screen.getByText('Zones (0/32)')).toBeInTheDocument()
     // A payload that was never a list of zones is zero zones, not a partial
@@ -212,7 +237,19 @@ describe('ZonesPage — malformed server data', () => {
       '/api/v1/cameras/cam-1/motion-zones': () =>
         json({
           camera_id: 'cam-1',
-          zones: [null, 1, 'x', { not: 'a polygon' }, [{ x: 1 }, [1, 2, 3]], [[0, 0], [1, 0], [1, 1]]],
+          zones: [
+            null,
+            1,
+            'x',
+            { not: 'a zone' },
+            [{ x: 1 }, [1, 2, 3]],
+            [
+              [0, 0],
+              [1, 0],
+              [1, 1],
+            ],
+            zoneJson({ id: 'z1', name: 'Zone 1' }),
+          ],
         }),
     })
 
@@ -230,10 +267,7 @@ describe('ZonesPage — end-to-end save', () => {
     const fetchMock = stubRoutes({
       ...backgroundRoutes(),
       '/api/v1/cameras/cam-1/motion-zones': (_url, init) => {
-        if (init?.method === 'PUT') {
-          const body: { zones: unknown } = JSON.parse(bodyText(init.body))
-          return json({ camera_id: 'cam-1', zones: body.zones })
-        }
+        if (init?.method === 'PUT') return echoWithIds(init)
         return json({ camera_id: 'cam-1', zones: [] })
       },
     })
@@ -259,12 +293,70 @@ describe('ZonesPage — end-to-end save', () => {
     const body: unknown = JSON.parse(bodyText(putCall?.[1]?.body))
     expect(body).toEqual({
       zones: [
-        [
-          [0.5, 0.5],
-          [0.56, 0.5],
-          [0.56, 0.54],
-        ],
+        {
+          name: 'Zone 1',
+          kind: 'detect',
+          enabled: true,
+          sensitivity: null,
+          points: [
+            [0.5, 0.5],
+            [0.56, 0.5],
+            [0.56, 0.54],
+          ],
+        },
       ],
     })
+  })
+
+  it('saves a zone turned into an ignore zone, and an existing zone keeps its id', async () => {
+    const user = userEvent.setup()
+    const fetchMock = stubRoutes({
+      ...backgroundRoutes(),
+      '/api/v1/cameras/cam-1/motion-zones': (_url, init) => {
+        if (init?.method === 'PUT') return echoWithIds(init)
+        return json({
+          camera_id: 'cam-1',
+          zones: [
+            zoneJson({ id: 'zgate', name: 'Gate', sensitivity: 70 }),
+            zoneJson({ id: 'ztree', name: 'Tree' }),
+          ],
+        })
+      },
+    })
+
+    renderWithProviders(<ZonesPage />)
+    expect(await screen.findByDisplayValue('Tree')).toBeInTheDocument()
+
+    await user.selectOptions(screen.getByLabelText('What Tree does'), 'ignore')
+    await user.selectOptions(screen.getByLabelText('Sensitivity of Gate'), 'camera')
+    await user.click(screen.getByRole('button', { name: 'Save zones' }))
+    expect(await screen.findByText('Zones saved.')).toBeInTheDocument()
+
+    const putCall = fetchMock.mock.calls.find((call) => call[1]?.method === 'PUT')
+    const body = JSON.parse(bodyText(putCall?.[1]?.body)) as { zones: Record<string, unknown>[] }
+    expect(body.zones.map((zone) => [zone.id, zone.kind, zone.sensitivity])).toEqual([
+      ['zgate', 'detect', null],
+      ['ztree', 'ignore', null],
+    ])
+  })
+
+  it('refuses to save two zones with the same name', async () => {
+    stubRoutes({
+      ...backgroundRoutes(),
+      '/api/v1/cameras/cam-1/motion-zones': () =>
+        json({
+          camera_id: 'cam-1',
+          zones: [zoneJson({ id: 'za', name: 'Gate' }), zoneJson({ id: 'zb', name: 'Drive' })],
+        }),
+    })
+    const user = userEvent.setup()
+    renderWithProviders(<ZonesPage />)
+    const drive = await screen.findByDisplayValue('Drive')
+
+    await user.clear(drive)
+    await user.type(drive, 'gate')
+
+    expect(await screen.findByText(/Two zones are called "gate"/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save zones' })).toBeDisabled()
   })
 })

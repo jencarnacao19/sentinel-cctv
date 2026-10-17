@@ -12,6 +12,7 @@ import { api, API_BASE, ApiError, NetworkError } from '@/api/client'
 import type {
   MotionEventListResponse,
   MotionWorkerStatusResponse,
+  WireZone,
 } from '@/features/zones/types'
 
 interface RawMotionZonesResponse {
@@ -32,7 +33,7 @@ export function fetchMotionZones(cameraId: string): Promise<RawMotionZonesRespon
  */
 export async function saveMotionZones(
   cameraId: string,
-  zones: [number, number][][],
+  zones: WireZone[],
 ): Promise<RawMotionZonesResponse> {
   let response: Response
   try {

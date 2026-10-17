@@ -130,6 +130,10 @@ class MotionManager:
     def worker_status(self) -> list[dict[str, object]]:
         return [worker.status() for worker in self._workers.values()]
 
+    def active_zones(self) -> dict[str, set[str]]:
+        """Detection zones currently in motion, by camera id."""
+        return {worker.camera_id: worker.active_zone_ids for worker in self._workers.values()}
+
     async def health_probe(self) -> health.ComponentHealth:
         if self._privacy_paused:
             return health.ComponentHealth(

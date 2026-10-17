@@ -54,6 +54,8 @@ interface ZoneCanvasProps {
    * "New zone" at the same limit means the operator finds out before drawing
    * one, not after losing the work to a failed save. */
   maxZonesReached?: boolean
+  /** Text of the button that starts a zone, naming the kind it will be. */
+  newZoneLabel?: string
 }
 
 /** How close (in device pixels) a click has to land to the first vertex of
@@ -350,7 +352,7 @@ export function ZoneCanvas(props: ZoneCanvasProps) {
             title={props.maxZonesReached ? 'At most 32 zones are allowed.' : undefined}
           >
             <Plus aria-hidden="true" />
-            New zone
+            {props.newZoneLabel ?? 'New zone'}
           </Button>
         ) : (
           <>
@@ -439,7 +441,11 @@ export function ZoneCanvas(props: ZoneCanvasProps) {
                 return `${shown.x},${shown.y}`
               })
               .join(' ')
-            const color = zone.enabled ? 'var(--color-motion)' : 'var(--color-fg-subtle)'
+            const color = !zone.enabled
+              ? 'var(--color-fg-subtle)'
+              : zone.kind === 'detect'
+                ? 'var(--color-accent)'
+                : 'var(--color-motion)'
             return (
               <polygon
                 key={zone.id}

@@ -35,6 +35,14 @@ class HaCameraCapabilities(BaseModel):
     motion_events: bool
 
 
+class HaMotionZone(BaseModel):
+    """A named detection zone. Each becomes its own motion sensor."""
+
+    id: str
+    name: str
+    active: bool
+
+
 class HaCamera(BaseModel):
     id: str
     name: str
@@ -46,6 +54,7 @@ class HaCamera(BaseModel):
     recording_state: str
     motion_enabled: bool
     motion_active: bool
+    motion_zones: list[HaMotionZone] = Field(default_factory=list)
     capabilities: HaCameraCapabilities
     stream: HaCameraStream
 

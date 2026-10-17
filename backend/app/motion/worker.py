@@ -28,6 +28,7 @@ from app.motion.aggregator import (
     Transition,
 )
 from app.motion.detector import MotionDetector, MotionResult, MotionSettings
+from app.motion.zones import MotionZone, detection_zones, parse_zones
 from app.streaming.client import Go2RtcUnavailableError
 from app.streaming.config import stream_names
 from app.streaming.manager import get_manager as get_streaming_manager
@@ -52,8 +53,18 @@ class MotionWorker:
         self._settings = settings
         self._source = frames.resolve_frame_source(camera, settings)
         self._detector = MotionDetector(MotionSettings.from_sensitivity(camera.motion_sensitivity))
-        self._detector.set_zones(service.parse_zones(camera.motion_zones))
+        configured_zones = parse_zones(camera.motion_zones)
+        self._detector.set_zones(configured_zones)
         self._aggregator = MotionAggregator(config=config)
+        # Each named detection zone has its own start/end state, which is what
+        # gives Home Assistant one motion sensor per zone.
+        self._zones: dict[str, MotionZone] = {
+            zone.id: zone for zone in detection_zones(configured_zones)
+        }
+        self._zone_aggregators = {
+            zone_id: MotionAggregator(config=config) for zone_id in self._zones
+        }
+        self._active_zones: set[str] = set()
         self._stream_name = stream_names(camera)[0]
 
         self._task: asyncio.Task[None] | None = None
@@ -86,6 +97,10 @@ class MotionWorker:
     @property
     def is_running(self) -> bool:
         return self._task is not None and not self._task.done()
+
+    @property
+    def active_zone_ids(self) -> set[str]:
+        return set(self._active_zones)
 
     # --- Main loop -------------------------------------------------------
 
@@ -120,6 +135,8 @@ class MotionWorker:
             # learned background is discarded rather than carried over.
             self._detector.reset()
             self._aggregator.reset()
+            for aggregator in self._zone_aggregators.values():
+                aggregator.reset()
 
             delay = backoff_delay(attempt)
             attempt += 1
@@ -166,7 +183,11 @@ class MotionWorker:
                 if camera is None:
                     return
                 self._event = await service.start_event(
-                    session, camera, outcome.window, self._aggregator.config
+                    session,
+                    camera,
+                    outcome.window,
+                    self._aggregator.config,
+                    zones=[self._zones[zone_id] for zone_id in sorted(self._active_zones)],
                 )
             await self._maybe_snapshot(now, force=True)
 
@@ -181,6 +202,46 @@ class MotionWorker:
         elif outcome.transition is Transition.ENDED and outcome.window is not None:
             await self._finish(outcome.window)
 
+        for zone_id, aggregator in self._zone_aggregators.items():
+            zone_outcome = aggregator.observe(result.for_zone(zone_id), now)
+            if zone_outcome.transition is Transition.STARTED:
+                await self._zone_started(zone_id, now)
+            elif zone_outcome.transition is Transition.ENDED and aggregator.active_window is None:
+                # An ENDED that immediately reopened (the event-length ceiling)
+                # is, for an on/off sensor, still the same movement.
+                self._zone_ended(zone_id, now)
+
+    async def _zone_started(self, zone_id: str, now: datetime) -> None:
+        zone = self._zones[zone_id]
+        self._active_zones.add(zone_id)
+        event = self._event
+        if event is not None:
+            async with session_scope() as session:
+                stored = await session.get(MotionEvent, event.id)
+                if stored is not None:
+                    service.add_event_zone(stored, zone)
+        service.publish_zone_transition(
+            self.camera_id,
+            self.camera_name,
+            zone,
+            started=True,
+            event_id=event.id if event is not None else None,
+            at=now,
+        )
+
+    def _zone_ended(self, zone_id: str, now: datetime) -> None:
+        if zone_id not in self._active_zones:
+            return
+        self._active_zones.discard(zone_id)
+        service.publish_zone_transition(
+            self.camera_id,
+            self.camera_name,
+            self._zones[zone_id],
+            started=False,
+            event_id=self._event.id if self._event is not None else None,
+            at=now,
+        )
+
     async def _finish(self, window: MotionWindow) -> None:
         if self._event is None:
             return
@@ -194,7 +255,11 @@ class MotionWorker:
                 await service.finish_event(session, event, window, self._aggregator.config)
 
     async def _close_open_event(self) -> None:
-        outcome = self._aggregator.flush(datetime.now(UTC))
+        now = datetime.now(UTC)
+        for zone_id, aggregator in self._zone_aggregators.items():
+            aggregator.flush(now)
+            self._zone_ended(zone_id, now)
+        outcome = self._aggregator.flush(now)
         if outcome.transition is Transition.ENDED and outcome.window is not None:
             await self._finish(outcome.window)
 
@@ -246,5 +311,6 @@ class MotionWorker:
             "reconnects": self.reconnects,
             "using_substream": self._source.using_substream if self._source else False,
             "in_event": self._event is not None,
+            "active_zones": sorted(self._active_zones),
             "last_error": self.last_error,
         }

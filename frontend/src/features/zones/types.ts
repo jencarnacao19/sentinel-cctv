@@ -14,19 +14,36 @@ export interface Point {
   y: number
 }
 
+export type ZoneKind = 'detect' | 'ignore'
+
 /**
- * One ignore zone as the editor works with it.
+ * One zone as the editor works with it, and as the server stores it.
  *
- * The API only ever stores bare polygons (see `MotionZonesUpdate` in
- * `app/motion/router.py`) -- no name, no enabled flag. `name` and `enabled`
- * are a local convenience layered on top and persisted in `localStorage`
- * (see `zoneStorage.ts`), not sent to the server. Only `points` round-trips.
+ * A detection zone is where motion counts once any exist on the camera, with
+ * its own Home Assistant sensor and, optionally, its own sensitivity (`null`
+ * follows the camera's). An ignore zone is cut out of the picture entirely.
+ * `id` is the server's for a saved zone; a zone drawn in this session gets a
+ * temporary one until the first save replaces it.
  */
 export interface EditorZone {
   id: string
+  /** False until the server has assigned this zone its permanent id. */
+  saved: boolean
   name: string
+  kind: ZoneKind
   enabled: boolean
+  sensitivity: number | null
   points: Point[]
+}
+
+/** A zone as `GET`/`PUT /cameras/{id}/motion-zones` exchanges it. */
+export interface WireZone {
+  id?: string
+  name: string
+  kind: ZoneKind
+  enabled: boolean
+  sensitivity: number | null
+  points: [number, number][]
 }
 
 /** One worker entry from `GET /events/status`. The endpoint returns more than
@@ -39,6 +56,7 @@ export interface MotionWorkerStatus {
   reconnects: number
   using_substream: boolean
   in_event: boolean
+  active_zones?: string[]
   last_error: string | null
 }
 

@@ -14,9 +14,16 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.models import Camera, MotionEvent, RecordingSegment
-from app.events.bus import MOTION_ENDED, MOTION_STARTED, publish
+from app.events.bus import (
+    MOTION_ENDED,
+    MOTION_STARTED,
+    MOTION_ZONE_ENDED,
+    MOTION_ZONE_STARTED,
+    publish,
+)
 from app.logging_config import get_logger
 from app.motion.aggregator import AggregatorConfig, MotionWindow
+from app.motion.zones import MotionZone
 from app.system import settings_store
 
 logger = get_logger("MOTION")
@@ -38,45 +45,39 @@ async def load_aggregator_config(session: AsyncSession) -> AggregatorConfig:
     )
 
 
-def parse_zones(raw: str | None) -> list[list[tuple[float, float]]]:
-    """Decode a camera's ignore-polygons, tolerating anything malformed.
-
-    A bad value must not stop motion detection for that camera; the worst
-    outcome of ignoring it is more events, not none.
-    """
-    if not raw:
+def event_zones(event: MotionEvent) -> list[dict[str, str]]:
+    """The detection zones an event covered, as stored at the time."""
+    if not event.zones:
         return []
     try:
-        data = json.loads(raw)
+        data = json.loads(event.zones)
     except json.JSONDecodeError:
-        logger.warning("Motion zones could not be decoded; ignoring them")
         return []
     if not isinstance(data, list):
         return []
-
-    zones: list[list[tuple[float, float]]] = []
-    for polygon in data:
-        if not isinstance(polygon, list) or len(polygon) < 3:
-            continue
-        points: list[tuple[float, float]] = []
-        for point in polygon:
-            if (
-                isinstance(point, (list, tuple))
-                and len(point) == 2
-                and all(isinstance(value, (int, float)) for value in point)
-            ):
-                points.append((float(point[0]), float(point[1])))
-        if len(points) >= 3:
-            zones.append(points)
-    return zones
+    return [
+        {"id": str(entry["id"]), "name": str(entry["name"])}
+        for entry in data
+        if isinstance(entry, dict) and "id" in entry and "name" in entry
+    ]
 
 
-def serialise_zones(zones: list[list[tuple[float, float]]]) -> str:
-    return json.dumps([[[round(x, 4), round(y, 4)] for x, y in polygon] for polygon in zones])
+def add_event_zone(event: MotionEvent, zone: MotionZone) -> bool:
+    """Record that ``zone`` saw motion during ``event``. Returns whether it was new."""
+    zones = event_zones(event)
+    if any(entry["id"] == zone.id for entry in zones):
+        return False
+    zones.append({"id": zone.id, "name": zone.name})
+    event.zones = json.dumps(zones)
+    return True
 
 
 async def start_event(
-    session: AsyncSession, camera: Camera, window: MotionWindow, config: AggregatorConfig
+    session: AsyncSession,
+    camera: Camera,
+    window: MotionWindow,
+    config: AggregatorConfig,
+    zones: list[MotionZone] | None = None,
 ) -> MotionEvent:
     pre_roll_start, _ = (
         window.started_at - timedelta(seconds=config.pre_roll_seconds),
@@ -88,6 +89,8 @@ async def start_event(
         peak_score=window.peak_score,
         pre_roll_start=pre_roll_start,
     )
+    for zone in zones or []:
+        add_event_zone(event, zone)
     session.add(event)
     await session.flush()
     logger.info(
@@ -101,9 +104,37 @@ async def start_event(
             "camera": camera.name,
             "event_id": event.id,
             "started_at": event.started_at,
+            "zones": event_zones(event),
         },
     )
     return event
+
+
+def publish_zone_transition(
+    camera_id: str,
+    camera_name: str,
+    zone: MotionZone,
+    *,
+    started: bool,
+    event_id: str | None,
+    at: datetime,
+) -> None:
+    """Tell subscribers (Home Assistant first) that one zone started or stopped."""
+    logger.info(
+        "Zone motion started" if started else "Zone motion ended",
+        extra={"camera_id": camera_id, "zone": zone.name, "zone_id": zone.id},
+    )
+    publish(
+        MOTION_ZONE_STARTED if started else MOTION_ZONE_ENDED,
+        {
+            "camera_id": camera_id,
+            "camera": camera_name,
+            "zone_id": zone.id,
+            "zone": zone.name,
+            "event_id": event_id,
+            "at": at,
+        },
+    )
 
 
 async def update_peak(session: AsyncSession, event: MotionEvent, score: float) -> None:
@@ -142,6 +173,7 @@ async def finish_event(
             "event_id": event.id,
             "duration_seconds": event.duration_seconds,
             "peak_score": event.peak_score,
+            "zones": event_zones(event),
         },
     )
     return event

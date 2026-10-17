@@ -38,7 +38,15 @@ function Harness() {
           const id = makeZoneId()
           setZones((current) => [
             ...current,
-            { id, name: `Zone ${current.length + 1}`, enabled: true, points: [] },
+            {
+              id,
+              saved: false,
+              name: `Zone ${current.length + 1}`,
+              kind: 'detect',
+              enabled: true,
+              sensitivity: null,
+              points: [],
+            },
           ])
           setDrawingZoneId(id)
           setActiveZoneId(id)

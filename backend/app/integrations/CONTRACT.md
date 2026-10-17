@@ -120,6 +120,9 @@ Authorization: Bearer sctv_xxx
       "recording_state": "recording",
       "motion_enabled": true,
       "motion_active": false,
+      "motion_zones": [
+        {"id": "z3f9a1c2b", "name": "Gate", "active": false}
+      ],
       "capabilities": {
         "snapshot": true,
         "live_stream": true,
@@ -160,7 +163,11 @@ Field notes:
   ever sends these four). `motion_active` reflects whether a `MotionEvent`
   with no `ended_at` exists right now for that camera — the state a
   `binary_sensor` should show *before* the first `motion.started` frame
-  arrives on the socket. `capabilities` is additive information the current
+  arrives on the socket. `motion_zones` lists the camera's enabled
+  *detection* zones (ignore zones and disabled zones are never listed), each
+  with whether it sees motion right now; each one becomes its own motion
+  `binary_sensor`, keyed on its `id`, which survives renaming the zone. The
+  list is empty when motion detection is off for the camera. `capabilities` is additive information the current
   integration code does not yet read (it infers the same facts from
   `recording_mode`/`enabled`/`motion_enabled`); it is included for a client
   that would rather not duplicate that inference.
@@ -293,8 +300,10 @@ one might have found its way into a caller's payload.
 | `camera.removed` | `camera_id`, `camera` |
 | `camera.online` | `camera_id`, `camera` |
 | `camera.offline` | `camera_id`, `camera`, `reason` (nullable) |
-| `motion.started` | `camera_id`, `camera`, `event_id`, `started_at` |
-| `motion.ended` | `camera_id`, `event_id`, `duration_seconds`, `peak_score` |
+| `motion.started` | `camera_id`, `camera`, `event_id`, `started_at`, `zones` |
+| `motion.ended` | `camera_id`, `event_id`, `duration_seconds`, `peak_score`, `zones` |
+| `motion.zone_started` | `camera_id`, `camera`, `zone_id`, `zone` (name), `event_id` (nullable), `at` |
+| `motion.zone_ended` | `camera_id`, `camera`, `zone_id`, `zone` (name), `event_id` (nullable), `at` |
 | `recording.started` | `camera_id`, `camera`, `segment_seconds` |
 | `recording.stopped` | `camera_id` |
 | `storage.warning` | `deleted`, `freed_bytes`, `reason` |

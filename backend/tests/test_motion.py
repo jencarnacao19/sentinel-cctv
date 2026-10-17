@@ -24,6 +24,7 @@ from app.motion.detector import (
     build_mask,
 )
 from app.motion.frames import FRAME_BYTES, build_frame_command
+from app.motion.zones import MotionZone, ZoneKind, parse_zones, serialise_zones
 
 CAMERA_PAYLOAD = {
     "name": "Porch",
@@ -45,6 +46,24 @@ def frame_with_object(x: int, y: int = 150, size: int = 70, value: int = 220) ->
     frame = blank_frame()
     frame[y : y + size, x : x + size] = value
     return frame
+
+
+LEFT_HALF = ((0.0, 0.0), (0.5, 0.0), (0.5, 1.0), (0.0, 1.0))
+RIGHT_HALF = ((0.5, 0.0), (1.0, 0.0), (1.0, 1.0), (0.5, 1.0))
+
+
+def ignore_zone(points: tuple[tuple[float, float], ...], zone_id: str = "ignore-1") -> MotionZone:
+    return MotionZone(id=zone_id, name=zone_id, kind=ZoneKind.IGNORE, points=points)
+
+
+def detect_zone(
+    points: tuple[tuple[float, float], ...],
+    zone_id: str = "gate",
+    sensitivity: int | None = None,
+) -> MotionZone:
+    return MotionZone(
+        id=zone_id, name=zone_id, kind=ZoneKind.DETECT, points=points, sensitivity=sensitivity
+    )
 
 
 def warm_up(detector: MotionDetector, frames: int = WARMUP_FRAMES + 5) -> None:
@@ -168,14 +187,14 @@ class TestMotionZones:
     def test_movement_inside_an_ignored_zone_is_not_reported(self) -> None:
         detector = MotionDetector()
         # Ignore the whole left half, where the object will appear.
-        detector.set_zones([[(0.0, 0.0), (0.5, 0.0), (0.5, 1.0), (0.0, 1.0)]])
+        detector.set_zones([ignore_zone(LEFT_HALF)])
         warm_up(detector)
 
         assert detector.process(frame_with_object(60, y=100, size=90)).has_motion is False
 
     def test_movement_outside_the_zone_is_still_reported(self) -> None:
         detector = MotionDetector()
-        detector.set_zones([[(0.0, 0.0), (0.5, 0.0), (0.5, 1.0), (0.0, 1.0)]])
+        detector.set_zones([ignore_zone(LEFT_HALF)])
         warm_up(detector)
 
         assert detector.process(frame_with_object(420, y=100, size=90)).has_motion is True
@@ -389,15 +408,26 @@ class TestFrameCommand:
 
 class TestZoneParsing:
     def test_valid_zones_round_trip(self) -> None:
-        zones = [[(0.1, 0.1), (0.9, 0.1), (0.9, 0.9)]]
-        assert service.parse_zones(service.serialise_zones(zones)) == zones
+        zones = [
+            detect_zone(((0.1, 0.1), (0.9, 0.1), (0.9, 0.9)), sensitivity=80),
+            ignore_zone(((0.2, 0.2), (0.3, 0.2), (0.3, 0.3)), zone_id="tree"),
+        ]
+        assert parse_zones(serialise_zones(zones)) == zones
+
+    def test_first_version_polygons_load_as_ignore_zones(self) -> None:
+        """Zones saved before names existed keep working after an upgrade."""
+        zones = parse_zones("[[[0.1, 0.1], [0.9, 0.1], [0.9, 0.9]]]")
+        assert len(zones) == 1
+        assert zones[0].kind is ZoneKind.IGNORE
+        assert zones[0].points == ((0.1, 0.1), (0.9, 0.1), (0.9, 0.9))
+        assert zones[0].enabled is True
 
     @pytest.mark.parametrize(
         "raw", [None, "", "not json", "{}", "[[]]", "[[[0.1, 0.1]]]", '["nonsense"]']
     )
     def test_malformed_zones_never_break_detection(self, raw: str | None) -> None:
         """The worst outcome of ignoring a bad value is more events, not none."""
-        assert service.parse_zones(raw) == []
+        assert parse_zones(raw) == []
 
 
 class TestEventPersistence:
@@ -734,21 +764,51 @@ class TestCrashRecovery:
 class TestMotionZonesApi:
     async def test_zones_round_trip_through_the_api(self, admin_client: AsyncClient) -> None:
         camera_id = (await admin_client.post("/api/v1/cameras", json=CAMERA_PAYLOAD)).json()["id"]
-        zones = [[[0.1, 0.1], [0.5, 0.1], [0.5, 0.5], [0.1, 0.5]]]
+        zones = [
+            {
+                "name": "Gate",
+                "kind": "detect",
+                "sensitivity": 70,
+                "points": [[0.1, 0.1], [0.5, 0.1], [0.5, 0.5], [0.1, 0.5]],
+            },
+            {"name": "Tree", "kind": "ignore", "points": [[0.6, 0.1], [0.9, 0.1], [0.9, 0.4]]},
+        ]
 
         response = await admin_client.put(
             f"/api/v1/cameras/{camera_id}/motion-zones", json={"zones": zones}
         )
-        assert response.status_code == 200
+        assert response.status_code == 200, response.text
+        saved = response.json()["zones"]
+        assert all(zone["id"] for zone in saved), "the server assigns ids to new zones"
 
-        stored = await admin_client.get(f"/api/v1/cameras/{camera_id}/motion-zones")
-        assert stored.json()["zones"] == [[[0.1, 0.1], [0.5, 0.1], [0.5, 0.5], [0.1, 0.5]]]
+        stored = (await admin_client.get(f"/api/v1/cameras/{camera_id}/motion-zones")).json()
+        assert stored["zones"] == saved
+        gate = stored["zones"][0]
+        assert gate["name"] == "Gate"
+        assert gate["kind"] == "detect"
+        assert gate["sensitivity"] == 70
+        assert gate["points"] == [[0.1, 0.1], [0.5, 0.1], [0.5, 0.5], [0.1, 0.5]]
+
+        # Saving again with the ids keeps them, which keeps Home Assistant's
+        # per-zone sensors attached to the same zones.
+        again = await admin_client.put(
+            f"/api/v1/cameras/{camera_id}/motion-zones", json={"zones": saved}
+        )
+        assert [zone["id"] for zone in again.json()["zones"]] == [zone["id"] for zone in saved]
 
     async def test_zones_can_be_cleared(self, admin_client: AsyncClient) -> None:
         camera_id = (await admin_client.post("/api/v1/cameras", json=CAMERA_PAYLOAD)).json()["id"]
         await admin_client.put(
             f"/api/v1/cameras/{camera_id}/motion-zones",
-            json={"zones": [[[0.1, 0.1], [0.5, 0.1], [0.5, 0.5]]]},
+            json={
+                "zones": [
+                    {
+                        "name": "Road",
+                        "kind": "ignore",
+                        "points": [[0.1, 0.1], [0.5, 0.1], [0.5, 0.5]],
+                    }
+                ]
+            },
         )
         response = await admin_client.put(
             f"/api/v1/cameras/{camera_id}/motion-zones", json={"zones": []}
@@ -758,9 +818,33 @@ class TestMotionZonesApi:
     @pytest.mark.parametrize(
         "zones",
         [
-            [[[0.1, 0.1], [0.5, 0.1]]],
-            [[[1.5, 0.1], [0.5, 0.1], [0.5, 0.5]]],
-            [[[-0.1, 0.1], [0.5, 0.1], [0.5, 0.5]]],
+            [{"name": "A", "kind": "ignore", "points": [[0.1, 0.1], [0.5, 0.1]]}],
+            [{"name": "A", "kind": "ignore", "points": [[1.5, 0.1], [0.5, 0.1], [0.5, 0.5]]}],
+            [{"name": "A", "kind": "ignore", "points": [[-0.1, 0.1], [0.5, 0.1], [0.5, 0.5]]}],
+            # Two zones with the same name would be two indistinguishable sensors.
+            [
+                {"name": "Gate", "kind": "detect", "points": [[0.1, 0.1], [0.5, 0.1], [0.5, 0.5]]},
+                {"name": "gate ", "kind": "detect", "points": [[0.6, 0.1], [0.9, 0.1], [0.9, 0.5]]},
+            ],
+            # Sensitivity only means something where motion is detected.
+            [
+                {
+                    "name": "Tree",
+                    "kind": "ignore",
+                    "sensitivity": 40,
+                    "points": [[0.1, 0.1], [0.5, 0.1], [0.5, 0.5]],
+                }
+            ],
+            [{"name": " ", "kind": "detect", "points": [[0.1, 0.1], [0.5, 0.1], [0.5, 0.5]]}],
+            [{"name": "A", "kind": "other", "points": [[0.1, 0.1], [0.5, 0.1], [0.5, 0.5]]}],
+            [
+                {
+                    "name": "A",
+                    "kind": "detect",
+                    "sensitivity": 101,
+                    "points": [[0.1, 0.1], [0.5, 0.1], [0.5, 0.5]],
+                }
+            ],
         ],
     )
     async def test_invalid_zones_are_refused(

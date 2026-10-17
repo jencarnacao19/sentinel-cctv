@@ -56,6 +56,9 @@
     "binary_sensor": {
       "motion": {
         "name": "Motion"
+      },
+      "zone_motion": {
+        "name": "{zone} motion"
       }
     },
     "sensor": {

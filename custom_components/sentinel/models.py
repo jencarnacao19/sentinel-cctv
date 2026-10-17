@@ -108,6 +108,36 @@ class StreamInfo:
 
 
 @dataclass(frozen=True, slots=True)
+class MotionZoneInfo:
+    """A named detection zone on a camera. Each gets its own motion sensor."""
+
+    id: str
+    name: str
+    active: bool = False
+
+
+def _parse_zones(value: Any) -> tuple[MotionZoneInfo, ...]:
+    """Zones from a handshake entry; anything unusable is skipped."""
+    if not isinstance(value, list):
+        return ()
+    zones: list[MotionZoneInfo] = []
+    for entry in value:
+        if not isinstance(entry, Mapping):
+            continue
+        zone_id = _as_str(entry.get("id"))
+        if zone_id is None:
+            continue
+        zones.append(
+            MotionZoneInfo(
+                id=zone_id,
+                name=_as_str(entry.get("name")) or zone_id,
+                active=bool(_as_bool(entry.get("active"), False)),
+            )
+        )
+    return tuple(zones)
+
+
+@dataclass(frozen=True, slots=True)
 class CameraInfo:
     """One camera as Sentinel describes it."""
 
@@ -121,6 +151,7 @@ class CameraInfo:
     recording_state: str | None = None
     motion_enabled: bool | None = None
     motion_active: bool | None = None
+    motion_zones: tuple[MotionZoneInfo, ...] = ()
     stream: StreamInfo = field(default_factory=StreamInfo)
     stream_url: str | None = None
     """Playable stream for the HA stream component, when the server offers one."""
@@ -148,6 +179,7 @@ class CameraInfo:
             recording_state=_as_str(payload.get("recording_state")),
             motion_enabled=_as_bool(payload.get("motion_enabled")),
             motion_active=_as_bool(payload.get("motion_active")),
+            motion_zones=_parse_zones(payload.get("motion_zones")),
             stream=StreamInfo.from_payload(payload.get("stream")),
             stream_url=_as_str(payload.get("stream_url"))
             or _as_str(payload.get("hls_url")),
@@ -156,6 +188,9 @@ class CameraInfo:
     @property
     def is_online(self) -> bool:
         return self.status == STATUS_ONLINE
+
+    def zone(self, zone_id: str) -> MotionZoneInfo | None:
+        return next((zone for zone in self.motion_zones if zone.id == zone_id), None)
 
 
 @dataclass(frozen=True, slots=True)
@@ -267,6 +302,14 @@ class SentinelEvent:
         return _as_str(self.data.get("event_id")) or _as_str(
             self.data.get("motion_event_id")
         )
+
+    @property
+    def zone_id(self) -> str | None:
+        return _as_str(self.data.get("zone_id"))
+
+    @property
+    def zone_name(self) -> str | None:
+        return _as_str(self.data.get("zone"))
 
     @property
     def timestamp(self) -> str | None:

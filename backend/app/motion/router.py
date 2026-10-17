@@ -19,6 +19,19 @@ from app.database.session import get_session
 from app.logging_config import get_logger
 from app.motion import cleanup, service
 from app.motion.manager import get_manager
+from app.motion.zones import (
+    MAX_DETECT_ZONES,
+    MAX_NAME_LENGTH,
+    MAX_POINTS,
+    MAX_ZONES,
+    MIN_POINTS,
+    ZONE_ID_PATTERN,
+    MotionZone,
+    ZoneKind,
+    new_zone_id,
+    parse_zones,
+    serialise_zones,
+)
 from app.security.paths import UnsafePathError, resolve_within
 from app.system import privacy
 
@@ -29,6 +42,11 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 
 MAX_PAGE_SIZE = 500
+
+
+class EventZone(BaseModel):
+    id: str
+    name: str
 
 
 class EventResponse(BaseModel):
@@ -48,6 +66,8 @@ class EventResponse(BaseModel):
     snapshot_url: str | None
     playback_url: str
     """Relative link the interface and Home Assistant use to open the clip."""
+    zones: list[EventZone] = Field(default_factory=list)
+    """Named detection zones that saw this movement, as they were named then."""
 
     @classmethod
     def from_event(cls, event: MotionEvent) -> EventResponse:
@@ -68,6 +88,7 @@ class EventResponse(BaseModel):
             ),
             snapshot_url=(f"/api/v1/events/{event.id}/snapshot" if event.snapshot_path else None),
             playback_url=f"/event/{event.id}",
+            zones=[EventZone(**zone) for zone in service.event_zones(event)],
         )
 
 
@@ -161,33 +182,82 @@ class EventCleanupStatusResponse(BaseModel):
     saved_exports_preserved: bool
 
 
-class MotionZonesUpdate(BaseModel):
-    """Polygons to ignore, in normalised 0-1 coordinates.
+class MotionZoneModel(BaseModel):
+    """One named zone, in normalised 0-1 coordinates.
 
-    Normalised so a mask drawn on a 2K preview keeps working if the analysis
-    resolution or the camera changes.
+    Normalised so a zone drawn on a 2K preview keeps working if the analysis
+    resolution or the camera changes. A new zone is sent without an ``id``.
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    zones: list[list[tuple[float, float]]] = Field(default_factory=list)
+    id: str | None = Field(default=None, pattern=ZONE_ID_PATTERN.pattern)
+    name: str = Field(min_length=1, max_length=MAX_NAME_LENGTH)
+    kind: ZoneKind
+    enabled: bool = True
+    sensitivity: int | None = Field(default=None, ge=0, le=100)
+    """Detection zones only; ``None`` follows the camera's sensitivity."""
+    points: list[tuple[float, float]]
 
     @model_validator(mode="after")
     def _check(self) -> Self:
-        if len(self.zones) > 32:
-            raise ValueError("At most 32 ignore zones.")
-        for polygon in self.zones:
-            if not 3 <= len(polygon) <= 128:
-                raise ValueError("Each zone needs between 3 and 128 points.")
-            for x, y in polygon:
-                if not (0.0 <= x <= 1.0 and 0.0 <= y <= 1.0):
-                    raise ValueError("Zone coordinates must be between 0 and 1.")
+        if not self.name.strip():
+            raise ValueError("Every zone needs a name.")
+        if not MIN_POINTS <= len(self.points) <= MAX_POINTS:
+            raise ValueError(f"Each zone needs between {MIN_POINTS} and {MAX_POINTS} points.")
+        for x, y in self.points:
+            if not (0.0 <= x <= 1.0 and 0.0 <= y <= 1.0):
+                raise ValueError("Zone coordinates must be between 0 and 1.")
+        if self.kind is ZoneKind.IGNORE and self.sensitivity is not None:
+            raise ValueError("Only detection zones have their own sensitivity.")
+        return self
+
+    @classmethod
+    def from_zone(cls, zone: MotionZone) -> MotionZoneModel:
+        return cls(
+            id=zone.id,
+            name=zone.name,
+            kind=zone.kind,
+            enabled=zone.enabled,
+            sensitivity=zone.sensitivity,
+            points=list(zone.points),
+        )
+
+    def to_zone(self) -> MotionZone:
+        return MotionZone(
+            id=self.id or new_zone_id(),
+            name=self.name.strip(),
+            kind=self.kind,
+            points=tuple((round(x, 4), round(y, 4)) for x, y in self.points),
+            enabled=self.enabled,
+            sensitivity=self.sensitivity,
+        )
+
+
+class MotionZonesUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    zones: list[MotionZoneModel] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _check(self) -> Self:
+        if len(self.zones) > MAX_ZONES:
+            raise ValueError(f"At most {MAX_ZONES} zones per camera.")
+        if sum(zone.kind is ZoneKind.DETECT for zone in self.zones) > MAX_DETECT_ZONES:
+            raise ValueError(f"At most {MAX_DETECT_ZONES} detection zones per camera.")
+        names = [zone.name.strip().casefold() for zone in self.zones]
+        if len(set(names)) != len(names):
+            # Each name becomes a Home Assistant entity; two alike are unusable.
+            raise ValueError("Zone names must be different from each other.")
+        ids = [zone.id for zone in self.zones if zone.id]
+        if len(set(ids)) != len(ids):
+            raise ValueError("Zone ids must be different from each other.")
         return self
 
 
 class MotionZonesResponse(BaseModel):
     camera_id: str
-    zones: list[list[tuple[float, float]]]
+    zones: list[MotionZoneModel]
 
 
 async def _load_event(session: AsyncSession, event_id: str) -> MotionEvent:
@@ -454,7 +524,7 @@ zones_router = APIRouter(prefix="/cameras", tags=["motion"])
 @zones_router.get(
     "/{camera_id}/motion-zones",
     response_model=MotionZonesResponse,
-    summary="Areas ignored by motion detection",
+    summary="Named detection and ignore zones",
 )
 async def get_motion_zones(
     camera_id: str, _: CurrentPrincipal, session: SessionDep
@@ -462,13 +532,16 @@ async def get_motion_zones(
     camera = await session.get(Camera, camera_id)
     if camera is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Camera not found.")
-    return MotionZonesResponse(camera_id=camera.id, zones=service.parse_zones(camera.motion_zones))
+    return MotionZonesResponse(
+        camera_id=camera.id,
+        zones=[MotionZoneModel.from_zone(zone) for zone in parse_zones(camera.motion_zones)],
+    )
 
 
 @zones_router.put(
     "/{camera_id}/motion-zones",
     response_model=MotionZonesResponse,
-    summary="Replace the ignored areas",
+    summary="Replace the motion zones",
 )
 async def set_motion_zones(
     camera_id: str, payload: MotionZonesUpdate, _: AdminPrincipal, session: SessionDep
@@ -477,21 +550,24 @@ async def set_motion_zones(
     if camera is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Camera not found.")
 
-    camera.motion_zones = service.serialise_zones(payload.zones) if payload.zones else None
+    zones = [zone.to_zone() for zone in payload.zones]
+    camera.motion_zones = serialise_zones(zones)
     await session.commit()
     logger.info(
         "Motion zones updated",
-        extra={"camera": camera.name, "camera_id": camera.id, "zones": len(payload.zones)},
+        extra={"camera": camera.name, "camera_id": camera.id, "zones": len(zones)},
     )
 
-    # The worker holds a compiled mask, so it has to be rebuilt with the camera.
+    # The worker holds compiled masks, so it has to be rebuilt with the camera.
     await _restart_worker(camera_id)
-    return MotionZonesResponse(camera_id=camera.id, zones=payload.zones)
+    return MotionZonesResponse(
+        camera_id=camera.id, zones=[MotionZoneModel.from_zone(zone) for zone in zones]
+    )
 
 
 @zones_router.get(
     "/{camera_id}/motion-preview",
-    summary="A frame to draw ignore zones on",
+    summary="A frame to draw motion zones on",
     response_class=Response,
     responses={200: {"content": {"image/jpeg": {}}}},
 )

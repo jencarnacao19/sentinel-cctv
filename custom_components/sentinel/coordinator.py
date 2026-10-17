@@ -48,6 +48,10 @@ from .const import (
     EVENT_TYPE_CAMERA_ONLINE,
     EVENT_TYPE_MOTION_ENDED,
     EVENT_TYPE_MOTION_STARTED,
+    EVENT_TYPE_MOTION_ZONE_ENDED,
+    EVENT_TYPE_MOTION_ZONE_STARTED,
+    EVENT_ZONE_MOTION_ENDED,
+    EVENT_ZONE_MOTION_STARTED,
     FALLBACK_SCAN_INTERVAL_SECONDS,
     REFRESH_EVENT_TYPES,
 )
@@ -63,6 +67,7 @@ class SentinelData:
     server: ServerInfo
     cameras: dict[str, CameraInfo]
     motion_active: dict[str, bool] = field(default_factory=dict)
+    zone_motion_active: dict[tuple[str, str], bool] = field(default_factory=dict)
     storage: StorageInfo = field(default_factory=StorageInfo)
     retention_days: int | None = None
     event_counts: dict[str, int] = field(default_factory=dict)
@@ -75,6 +80,14 @@ class SentinelData:
             return self.motion_active[camera_id]
         camera = self.cameras.get(camera_id)
         return camera.motion_active if camera is not None else None
+
+    def zone_motion_for(self, camera_id: str, zone_id: str) -> bool | None:
+        """Push state since the last refresh, else what the refresh reported."""
+        if (camera_id, zone_id) in self.zone_motion_active:
+            return self.zone_motion_active[(camera_id, zone_id)]
+        camera = self.cameras.get(camera_id)
+        zone = camera.zone(zone_id) if camera is not None else None
+        return zone.active if zone is not None else None
 
 
 class SentinelDataUpdateCoordinator(DataUpdateCoordinator[SentinelData]):
@@ -169,6 +182,8 @@ class SentinelDataUpdateCoordinator(DataUpdateCoordinator[SentinelData]):
             server=server,
             cameras=cameras,
             motion_active=motion_active,
+            # Zone push state starts empty: every refresh carries each zone's
+            # live state from the server, so a missed end event cannot stick.
             storage=StorageInfo.from_payload(storage_payload),
             retention_days=retention_days,
             event_counts=event_counts,
@@ -229,6 +244,17 @@ class SentinelDataUpdateCoordinator(DataUpdateCoordinator[SentinelData]):
             self._set_motion(camera_id, True, event)
         elif event.type == EVENT_TYPE_MOTION_ENDED and camera_id:
             self._set_motion(camera_id, False, event)
+        elif (
+            event.type in (EVENT_TYPE_MOTION_ZONE_STARTED, EVENT_TYPE_MOTION_ZONE_ENDED)
+            and camera_id
+            and event.zone_id
+        ):
+            self._set_zone_motion(
+                camera_id,
+                event.zone_id,
+                event.type == EVENT_TYPE_MOTION_ZONE_STARTED,
+                event,
+            )
         elif event.type == EVENT_TYPE_CAMERA_ONLINE and camera_id:
             self._set_camera_status(camera_id, online=True)
         elif event.type == EVENT_TYPE_CAMERA_OFFLINE and camera_id:
@@ -251,6 +277,29 @@ class SentinelDataUpdateCoordinator(DataUpdateCoordinator[SentinelData]):
             {
                 "camera_id": camera_id,
                 "camera_name": event.camera_name or self.data.cameras[camera_id].name,
+                "event_id": event.event_id,
+                "timestamp": event.timestamp,
+            },
+        )
+
+    def _set_zone_motion(
+        self, camera_id: str, zone_id: str, active: bool, event: SentinelEvent
+    ) -> None:
+        camera = self.data.cameras.get(camera_id)
+        if camera is None:
+            return
+        if camera.zone(zone_id) is None:
+            # A zone drawn since the last poll: fetch it so its sensor exists.
+            self.hass.async_create_task(self.async_request_refresh())
+        self.data.zone_motion_active[(camera_id, zone_id)] = active
+        self.async_set_updated_data(self.data)
+        self.hass.bus.async_fire(
+            EVENT_ZONE_MOTION_STARTED if active else EVENT_ZONE_MOTION_ENDED,
+            {
+                "camera_id": camera_id,
+                "camera_name": event.camera_name or camera.name,
+                "zone_id": zone_id,
+                "zone_name": event.zone_name or zone_id,
                 "event_id": event.event_id,
                 "timestamp": event.timestamp,
             },

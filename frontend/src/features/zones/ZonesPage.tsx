@@ -1,5 +1,5 @@
 /**
- * The motion ignore-zone editor.
+ * The motion zone editor: named detection zones and areas to ignore.
  *
  * Ties together a live preview (`usePreviewFrame`), the drawing surface
  * (`ZoneCanvas`), the accessible text list (`ZoneList`), undo/redo
@@ -22,13 +22,14 @@ import { EmptyState } from '@/components/EmptyState'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { Segmented } from '@/components/ui/segmented'
 import { Select } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useCameras } from '@/features/cameras/useCameras'
 import { TuningPanel } from '@/features/zones/TuningPanel'
 import { ZoneCanvas } from '@/features/zones/ZoneCanvas'
 import { ZoneList } from '@/features/zones/ZoneList'
-import type { EditorZone, Point } from '@/features/zones/types'
+import type { EditorZone, Point, ZoneKind } from '@/features/zones/types'
 import { useMotionZones, useSaveMotionZones } from '@/features/zones/useMotionZones'
 import { usePreviewFrame } from '@/features/zones/usePreviewFrame'
 import { useZoneHistory } from '@/features/zones/useZoneHistory'
@@ -36,17 +37,22 @@ import {
   MAX_POINTS,
   MAX_ZONES,
   MIN_POINTS,
+  defaultZoneName,
   makeZoneId,
-  mergeZones,
+  sanitizeServerZones,
+  zoneProblems,
   zonesSignature,
   zonesToPayload,
 } from '@/features/zones/zoneMath'
-import { loadStoredZones, saveStoredZones } from '@/features/zones/zoneStorage'
 
 function errorText(error: unknown): string {
   if (error instanceof NetworkError) return 'Could not reach the Sentinel server.'
   if (error instanceof ApiError) return error.message
   return 'Something went wrong.'
+}
+
+function sanitizeSavedZones(raw: unknown): EditorZone[] {
+  return sanitizeServerZones(raw).zones
 }
 
 function ZoneEditor({ cameraId, cameraName }: { cameraId: string; cameraName: string }) {
@@ -63,6 +69,7 @@ function ZoneEditor({ cameraId, cameraName }: { cameraId: string; cameraName: st
   const [activeZoneId, setActiveZoneId] = useState<string | null>(null)
   const [validationMessage, setValidationMessage] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
+  const [newZoneKind, setNewZoneKind] = useState<ZoneKind>('detect')
 
   // Hydrate exactly once, the moment this camera's zones first arrive. Later
   // refetches (a background poll, or the one this save triggers on its own
@@ -70,12 +77,13 @@ function ZoneEditor({ cameraId, cameraName }: { cameraId: string; cameraName: st
   useEffect(() => {
     if (hydratedRef.current || !zonesQuery.data) return
     hydratedRef.current = true
-    const merged = mergeZones(loadStoredZones(cameraId), zonesQuery.data.zones)
-    resetTo(merged)
-    setSavedSignature(zonesSignature(merged))
-  }, [zonesQuery.data, cameraId, resetTo])
+    resetTo(zonesQuery.data.zones)
+    setSavedSignature(zonesSignature(zonesQuery.data.zones))
+  }, [zonesQuery.data, resetTo])
 
   const unsavedChanges = zonesSignature(zones) !== savedSignature
+  const problems = zoneProblems(zones)
+  const hasDetectionZones = zones.some((zone) => zone.kind === 'detect' && zone.enabled)
 
   function commitZones(updater: (current: EditorZone[]) => EditorZone[]): void {
     setSaveMessage(null)
@@ -87,7 +95,15 @@ function ZoneEditor({ cameraId, cameraName }: { cameraId: string; cameraName: st
     const id = makeZoneId()
     commitZones((current) => [
       ...current,
-      { id, name: `Zone ${current.length + 1}`, enabled: true, points: [] },
+      {
+        id,
+        saved: false,
+        name: defaultZoneName(newZoneKind, current),
+        kind: newZoneKind,
+        enabled: true,
+        sensitivity: null,
+        points: [],
+      },
     ])
     setDrawingZoneId(id)
     setActiveZoneId(id)
@@ -171,13 +187,31 @@ function ZoneEditor({ cameraId, cameraName }: { cameraId: string; cameraName: st
     )
   }
 
+  function handleChangeKind(zoneId: string, kind: ZoneKind): void {
+    commitZones((current) =>
+      current.map((entry) =>
+        entry.id === zoneId
+          ? { ...entry, kind, sensitivity: kind === 'detect' ? entry.sensitivity : null }
+          : entry,
+      ),
+    )
+  }
+
+  function handleChangeSensitivity(zoneId: string, sensitivity: number | null): void {
+    commitZones((current) =>
+      current.map((entry) => (entry.id === zoneId ? { ...entry, sensitivity } : entry)),
+    )
+  }
+
   function handleSave(): void {
-    const payload = zonesToPayload(zones)
-    const savedZones = zones
-    saveZones.mutate(payload, {
-      onSuccess: () => {
-        saveStoredZones(cameraId, savedZones)
-        setSavedSignature(zonesSignature(savedZones))
+    saveZones.mutate(zonesToPayload(zones), {
+      onSuccess: (response) => {
+        // The server assigns permanent ids to new zones; adopting its copy is
+        // what keeps the next save from creating them a second time.
+        const saved = sanitizeSavedZones(response.zones)
+        resetTo(saved)
+        setSavedSignature(zonesSignature(saved))
+        setActiveZoneId(null)
         setSaveMessage('Zones saved.')
       },
     })
@@ -230,6 +264,7 @@ function ZoneEditor({ cameraId, cameraName }: { cameraId: string; cameraName: st
           activeZoneId={activeZoneId}
           validationMessage={validationMessage}
           maxZonesReached={zones.length >= MAX_ZONES}
+          newZoneLabel={newZoneKind === 'detect' ? 'New detection zone' : 'New ignore zone'}
           onSelectZone={setActiveZoneId}
           onStartZone={handleStartZone}
           onAddPoint={handleAddPoint}
@@ -239,6 +274,27 @@ function ZoneEditor({ cameraId, cameraName }: { cameraId: string; cameraName: st
           onCancelZone={handleCancelZone}
           onDeleteZone={handleDeleteZone}
         />
+
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-sm text-(--color-fg-muted)" aria-hidden="true">
+            New zones
+          </span>
+          <Segmented<ZoneKind>
+            ariaLabel="Kind of the next zone you draw"
+            value={newZoneKind}
+            onChange={setNewZoneKind}
+            options={[
+              { value: 'detect', label: 'Detect motion here', children: 'Detect motion here' },
+              { value: 'ignore', label: 'Ignore this area', children: 'Ignore this area' },
+            ]}
+          />
+        </div>
+
+        <p className="text-sm text-(--color-fg-muted)">
+          {hasDetectionZones
+            ? 'This camera has detection zones, so only movement inside them counts. Each one is its own motion sensor in Home Assistant.'
+            : 'With no detection zone, movement anywhere in the picture counts, except in ignored areas.'}
+        </p>
 
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" variant="secondary" size="sm" onClick={undo} disabled={!canUndo}>
@@ -254,7 +310,12 @@ function ZoneEditor({ cameraId, cameraName }: { cameraId: string; cameraName: st
             size="sm"
             className="ml-auto"
             onClick={handleSave}
-            disabled={!unsavedChanges || drawingZoneId !== null || saveZones.isPending}
+            disabled={
+              !unsavedChanges ||
+              drawingZoneId !== null ||
+              problems.length > 0 ||
+              saveZones.isPending
+            }
             loading={saveZones.isPending}
           >
             <Save aria-hidden="true" />
@@ -262,6 +323,13 @@ function ZoneEditor({ cameraId, cameraName }: { cameraId: string; cameraName: st
           </Button>
         </div>
 
+        {problems.length > 0 ? (
+          <Alert variant="warning">
+            {problems.map((problem) => (
+              <p key={problem}>{problem}</p>
+            ))}
+          </Alert>
+        ) : null}
         {saveZones.isError ? <Alert variant="danger">{errorText(saveZones.error)}</Alert> : null}
         <p aria-live="polite" className="text-sm text-(--color-fg-muted)">
           {saveMessage ?? (unsavedChanges ? 'Unsaved changes.' : '')}
@@ -278,6 +346,8 @@ function ZoneEditor({ cameraId, cameraName }: { cameraId: string; cameraName: st
             onSelectZone={setActiveZoneId}
             onRenameZone={handleRenameZone}
             onToggleZone={handleToggleZone}
+            onChangeKind={handleChangeKind}
+            onChangeSensitivity={handleChangeSensitivity}
             onDeleteZone={handleDeleteZone}
           />
         </section>
@@ -311,7 +381,7 @@ export function ZonesPage() {
     <div className="mx-auto max-w-6xl space-y-6">
       <PageHeader
         title="Motion zones"
-        description="Draw the areas each camera should ignore when detecting movement — a road, a tree, a neighbour's window."
+        description="Draw named zones where motion counts, each with its own sensitivity and Home Assistant sensor, and areas to ignore such as a road or a tree."
       />
 
       <div className="flex flex-wrap items-center gap-2">
@@ -344,7 +414,7 @@ export function ZonesPage() {
         <EmptyState
           icon={Video}
           title="No cameras yet"
-          description="Add a camera first, then come back here to draw the areas it should ignore."
+          description="Add a camera first, then come back here to draw its motion zones."
         />
       ) : cameraId ? (
         <ZoneEditor key={cameraId} cameraId={cameraId} cameraName={camera?.name ?? 'this camera'} />

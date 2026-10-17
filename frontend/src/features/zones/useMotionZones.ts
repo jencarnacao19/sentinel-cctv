@@ -6,6 +6,7 @@ import {
   fetchRecentMotionEvents,
   saveMotionZones,
 } from '@/features/zones/api'
+import type { WireZone } from '@/features/zones/types'
 import { sanitizeServerZones, type SanitizedZones } from '@/features/zones/zoneMath'
 
 const zonesQueryKey = (cameraId: string) => ['zones', 'motion-zones', cameraId] as const
@@ -24,12 +25,12 @@ export function useMotionZones(cameraId: string) {
 export function useSaveMotionZones(cameraId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (zones: [number, number][][]) => saveMotionZones(cameraId, zones),
+    mutationFn: (zones: WireZone[]) => saveMotionZones(cameraId, zones),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: zonesQueryKey(cameraId) })
-      // Saving restarts the camera's motion worker (it holds a compiled mask
-      // baked from the old zones), so the status the tuning panel shows is
-      // about to change too.
+      // Saving restarts the camera's motion worker (it holds masks compiled
+      // from the old zones), so the status the tuning panel shows is about to
+      // change too.
       await queryClient.invalidateQueries({ queryKey: ['zones', 'worker-status'] })
     },
   })

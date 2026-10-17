@@ -5,7 +5,7 @@
  * malformed-input behaviour can be tested without mounting anything.
  */
 
-import type { EditorZone, Point } from '@/features/zones/types'
+import type { EditorZone, Point, WireZone, ZoneKind } from '@/features/zones/types'
 
 /** Mirrors `MotionZonesUpdate` in `backend/app/motion/router.py`. Duplicated
  * here deliberately -- the two live in separate deployable artifacts, so the
@@ -13,8 +13,10 @@ import type { EditorZone, Point } from '@/features/zones/types'
  * agrees, especially when reading a value the server wrote in the past under
  * a different version of that validator. */
 export const MAX_ZONES = 32
+export const MAX_DETECT_ZONES = 16
 export const MIN_POINTS = 3
 export const MAX_POINTS = 128
+export const MAX_NAME_LENGTH = 48
 
 export function clamp01(value: number): number {
   if (Number.isNaN(value)) return 0
@@ -54,11 +56,33 @@ function sanitizeWirePolygon(raw: unknown): Point[] | null {
 }
 
 export interface SanitizedZones {
-  zones: Point[][]
-  /** Count of top-level entries that were not usable polygons, so the page
+  zones: EditorZone[]
+  /** Count of top-level entries that were not usable zones, so the page
    * can say "N zones could not be read" instead of quietly showing fewer
    * zones than the operator remembers saving. */
   dropped: number
+}
+
+function sanitizeWireZone(raw: unknown): EditorZone | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const { id, name, kind, enabled, sensitivity, points } = raw as Record<string, unknown>
+  if (typeof id !== 'string' || !id) return null
+  if (typeof name !== 'string' || !name.trim()) return null
+  if (kind !== 'detect' && kind !== 'ignore') return null
+  const polygon = sanitizeWirePolygon(points)
+  if (!polygon) return null
+  return {
+    id,
+    saved: true,
+    name,
+    kind,
+    enabled: enabled !== false,
+    sensitivity:
+      kind === 'detect' && isFiniteNumber(sensitivity)
+        ? Math.round(Math.min(100, Math.max(0, sensitivity)))
+        : null,
+    points: polygon,
+  }
 }
 
 /** Turn whatever `GET /cameras/{id}/motion-zones` returned into zones this
@@ -66,15 +90,15 @@ export interface SanitizedZones {
 export function sanitizeServerZones(raw: unknown): SanitizedZones {
   if (!Array.isArray(raw)) return { zones: [], dropped: 0 }
 
-  const zones: Point[][] = []
+  const zones: EditorZone[] = []
   let dropped = 0
   for (const entry of raw) {
     if (zones.length >= MAX_ZONES) {
       dropped += 1
       continue
     }
-    const polygon = sanitizeWirePolygon(entry)
-    if (polygon) zones.push(polygon)
+    const zone = sanitizeWireZone(entry)
+    if (zone) zones.push(zone)
     else dropped += 1
   }
   return { zones, dropped }
@@ -84,73 +108,61 @@ function roundCoord(value: number): number {
   return Math.round(clamp01(value) * 10_000) / 10_000
 }
 
-/** The wire format `PUT /cameras/{id}/motion-zones` expects: bare arrays of
- * `[x, y]` pairs, enabled zones only. A disabled zone is a real zone the
- * operator is keeping for later, not one that should still suppress motion --
- * so it is deliberately left out of what gets saved. */
-export function zonesToPayload(zones: EditorZone[]): [number, number][][] {
-  return zones
-    .filter((zone) => zone.enabled)
-    .map((zone) => zone.points.map((point): [number, number] => [roundCoord(point.x), roundCoord(point.y)]))
+/** The wire format `PUT /cameras/{id}/motion-zones` expects. Disabled zones
+ * are sent too: the server keeps them, so a zone switched off for a while is
+ * still there, with its name, when it is switched back on. A zone drawn in
+ * this session is sent without an id so the server assigns its permanent one. */
+export function zonesToPayload(zones: EditorZone[]): WireZone[] {
+  return zones.map((zone) => ({
+    ...(zone.saved ? { id: zone.id } : {}),
+    name: zone.name.trim(),
+    kind: zone.kind,
+    enabled: zone.enabled,
+    sensitivity: zone.kind === 'detect' ? zone.sensitivity : null,
+    points: zone.points.map((point): [number, number] => [roundCoord(point.x), roundCoord(point.y)]),
+  }))
 }
 
-/** Identifies a polygon by its rounded points, for matching a locally-known
- * zone against what the server has without caring about point-object
- * identity. Order-sensitive on purpose: two polygons with the same points in
- * a different winding order are not "the same zone" as far as this editor's
- * merge logic needs to care, and treating them as different only ever causes
- * an extra harmless import, never a lost zone. */
-export function polygonKey(points: Point[]): string {
-  return points.map((point) => `${roundCoord(point.x)},${roundCoord(point.y)}`).join('|')
+/** Problems that would make the server refuse a save, worded for the operator. */
+export function zoneProblems(zones: EditorZone[]): string[] {
+  const problems: string[] = []
+  const names = new Map<string, number>()
+  for (const zone of zones) {
+    const key = zone.name.trim().toLocaleLowerCase()
+    if (!key) problems.push('Every zone needs a name.')
+    names.set(key, (names.get(key) ?? 0) + 1)
+  }
+  for (const [name, count] of names) {
+    if (name && count > 1) problems.push(`Two zones are called "${name}". Each name must be different.`)
+  }
+  if (zones.filter((zone) => zone.kind === 'detect').length > MAX_DETECT_ZONES) {
+    problems.push(`At most ${MAX_DETECT_ZONES} detection zones per camera.`)
+  }
+  return [...new Set(problems)]
+}
+
+export function defaultZoneName(kind: ZoneKind, zones: EditorZone[]): string {
+  const base = kind === 'detect' ? 'Zone' : 'Ignored area'
+  const taken = new Set(zones.map((zone) => zone.name.trim().toLocaleLowerCase()))
+  for (let index = 1; ; index += 1) {
+    const candidate = `${base} ${index}`
+    if (!taken.has(candidate.toLocaleLowerCase())) return candidate
+  }
 }
 
 let localIdCounter = 0
 
-/** A per-tab-session unique id for a locally-known zone. Not sent to the
- * server -- it exists only so React can key list items and so `localStorage`
- * entries survive a reorder. `crypto.randomUUID` is unavailable in some older
- * embedded browsers this runs on (tablets used to aim a camera are not always
- * new), hence the fallback. */
+/** A temporary id for a zone drawn in this session, used to key list items
+ * until the first save, when the server assigns the permanent one.
+ * `crypto.randomUUID` is unavailable in some older embedded browsers this
+ * runs on (tablets used to aim a camera are not always new), hence the
+ * fallback. */
 export function makeZoneId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID()
   }
   localIdCounter += 1
   return `zone-${Date.now()}-${localIdCounter}`
-}
-
-/**
- * Reconcile the zones remembered in this browser (with names and
- * enabled/disabled state) against what the server actually has right now.
- *
- * `stored === null` means this device has never edited this camera's zones
- * before (or its storage was cleared): every server zone becomes a freshly
- * named, enabled zone. Otherwise, any server zone that does not match an
- * *enabled* local zone is new -- either set through some future API-only
- * path, or the local copy was cleared independently -- and is imported
- * rather than silently dropped, because losing a zone that is actively
- * suppressing motion is worse than a spuriously named "Imported zone".
- */
-export function mergeZones(stored: EditorZone[] | null, serverZones: Point[][]): EditorZone[] {
-  if (stored === null) {
-    return serverZones.map((points, index) => ({
-      id: makeZoneId(),
-      name: `Zone ${index + 1}`,
-      enabled: true,
-      points,
-    }))
-  }
-
-  const knownKeys = new Set(stored.filter((zone) => zone.enabled).map((zone) => polygonKey(zone.points)))
-  const imported = serverZones
-    .filter((points) => !knownKeys.has(polygonKey(points)))
-    .map((points, index) => ({
-      id: makeZoneId(),
-      name: `Imported zone ${index + 1}`,
-      enabled: true,
-      points,
-    }))
-  return [...stored, ...imported]
 }
 
 /** Ray-casting point-in-polygon test, used to pick which zone a click landed
@@ -179,6 +191,13 @@ export function distance(a: Point, b: Point): number {
  * real edit even though a mouse never touched the canvas. */
 export function zonesSignature(zones: EditorZone[]): string {
   return JSON.stringify(
-    zones.map((zone) => [zone.id, zone.name, zone.enabled, zone.points.map((p) => [p.x, p.y])]),
+    zones.map((zone) => [
+      zone.id,
+      zone.name,
+      zone.kind,
+      zone.enabled,
+      zone.sensitivity,
+      zone.points.map((p) => [p.x, p.y]),
+    ]),
   )
 }

@@ -21,10 +21,13 @@ Two things separate this from a naive frame-difference:
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 
 import cv2
 import numpy as np
+
+from app.motion.zones import MotionZone, ZoneKind
 
 #: Frames are analysed at this size regardless of the source resolution.
 #: Motion large enough to care about is still obvious here, and the cost is a
@@ -81,6 +84,14 @@ class MotionSettings:
 
 
 @dataclass(frozen=True, slots=True)
+class ZoneResult:
+    """Motion inside one detection zone, in the same units as the frame score."""
+
+    score: float
+    regions: list[tuple[int, int, int, int]] = field(default_factory=list)
+
+
+@dataclass(frozen=True, slots=True)
 class MotionResult:
     """What one frame produced."""
 
@@ -93,10 +104,30 @@ class MotionResult:
     is_global_change: bool = False
     """True when the whole scene changed at once: a light, or auto-exposure."""
     warming_up: bool = False
+    zones: dict[str, ZoneResult] = field(default_factory=dict)
+    """Detection zones with qualifying motion this frame, by zone id."""
 
     @property
     def has_motion(self) -> bool:
         return self.score > 0 and not self.is_global_change and not self.warming_up
+
+    def for_zone(self, zone_id: str) -> MotionResult:
+        """This frame as seen by one detection zone, for its own event state."""
+        hit = self.zones.get(zone_id)
+        return MotionResult(
+            score=hit.score if hit is not None else 0.0,
+            changed_fraction=self.changed_fraction,
+            regions=list(hit.regions) if hit is not None else [],
+            is_global_change=self.is_global_change,
+            warming_up=self.warming_up,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class _CompiledZone:
+    id: str
+    mask: np.ndarray
+    sensitivity: int | None
 
 
 def build_mask(
@@ -123,6 +154,18 @@ def build_mask(
     return mask if drew else None
 
 
+def build_zone_mask(
+    points: Sequence[tuple[float, float]],
+    width: int = ANALYSIS_WIDTH,
+    height: int = ANALYSIS_HEIGHT,
+) -> np.ndarray:
+    """A binary mask that is set inside one normalised polygon."""
+    mask = np.zeros((height, width), dtype=np.uint8)
+    polygon = np.array([(int(x * width), int(y * height)) for x, y in points], dtype=np.int32)
+    cv2.fillPoly(mask, [polygon], 255)
+    return mask
+
+
 class MotionDetector:
     """Stateful detector for one camera.
 
@@ -131,25 +174,27 @@ class MotionDetector:
 
     def __init__(self, settings: MotionSettings | None = None) -> None:
         self.settings = settings or MotionSettings()
-        self._subtractor = cv2.createBackgroundSubtractorMOG2(
-            history=500,
-            # Mahalanobis distance, not a pixel threshold. 16 is OpenCV's
-            # default and behaves well on compressed camera output.
-            varThreshold=self.settings.var_threshold,
-            detectShadows=False,
-        )
-        self._frames_seen = 0
         self._mask: np.ndarray | None = None
+        self._detect_zones: list[_CompiledZone] = []
         self._kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        self._model = self._model_settings()
+        self.reset()
 
-    def set_zones(self, zones: list[list[tuple[float, float]]]) -> None:
-        self._mask = build_mask(zones)
+    def set_zones(self, zones: Sequence[MotionZone]) -> None:
+        """Ignore zones are cut out first; once any detection zone exists,
+        motion only counts inside one, each judged at its own sensitivity."""
+        enabled = [zone for zone in zones if zone.enabled]
+        self._mask = build_mask([list(z.points) for z in enabled if z.kind is ZoneKind.IGNORE])
+        self._detect_zones = [
+            _CompiledZone(id=z.id, mask=build_zone_mask(z.points), sensitivity=z.sensitivity)
+            for z in enabled
+            if z.kind is ZoneKind.DETECT
+        ]
+        self._refresh_model()
 
     def set_settings(self, settings: MotionSettings) -> None:
-        rebuild = settings.var_threshold != self.settings.var_threshold
         self.settings = settings
-        if rebuild:
-            self.reset()
+        self._refresh_model()
 
     def reset(self) -> None:
         """Forget the learned background.
@@ -160,10 +205,33 @@ class MotionDetector:
         """
         self._subtractor = cv2.createBackgroundSubtractorMOG2(
             history=500,
-            varThreshold=self.settings.var_threshold,
+            # Mahalanobis distance, not a pixel threshold. 16 is OpenCV's
+            # default and behaves well on compressed camera output.
+            varThreshold=self._model.var_threshold,
             detectShadows=False,
         )
         self._frames_seen = 0
+
+    def _model_settings(self) -> MotionSettings:
+        """One background model serves every zone, so it runs at the most
+        sensitive level any zone asks for; less sensitive zones then demand a
+        larger movement before they count it."""
+        zone_levels = [z.sensitivity for z in self._detect_zones if z.sensitivity is not None]
+        if not zone_levels or max(zone_levels) <= self.settings.sensitivity:
+            return self.settings
+        return MotionSettings.from_sensitivity(max(zone_levels))
+
+    def _refresh_model(self) -> None:
+        model = self._model_settings()
+        rebuild = model.var_threshold != self._model.var_threshold
+        self._model = model
+        if rebuild:
+            self.reset()
+
+    def _zone_min_area_fraction(self, zone: _CompiledZone) -> float:
+        if zone.sensitivity is None:
+            return self.settings.min_area_fraction
+        return MotionSettings.from_sensitivity(zone.sensitivity).min_area_fraction
 
     @property
     def is_warm(self) -> bool:
@@ -178,7 +246,7 @@ class MotionDetector:
         self._frames_seen += 1
 
         foreground = self._subtractor.apply(prepared, learningRate=self.settings.learning_rate)
-        _, binary = cv2.threshold(foreground, self.settings.threshold, 255, cv2.THRESH_BINARY)
+        _, binary = cv2.threshold(foreground, self._model.threshold, 255, cv2.THRESH_BINARY)
 
         if self._mask is not None:
             binary = cv2.bitwise_and(binary, self._mask)
@@ -201,23 +269,32 @@ class MotionDetector:
             self._subtractor.apply(prepared, learningRate=0.5)
             return MotionResult(score=0.0, changed_fraction=changed_fraction, is_global_change=True)
 
-        min_area = self.settings.min_area_fraction * total_pixels
-        contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not self._detect_zones:
+            motion_area, regions = _qualifying_motion(
+                binary, self.settings.min_area_fraction * total_pixels
+            )
+            return MotionResult(
+                score=min(1.0, motion_area / total_pixels),
+                changed_fraction=changed_fraction,
+                regions=regions,
+            )
 
-        regions: list[tuple[int, int, int, int]] = []
-        motion_area = 0.0
-        for contour in contours:
-            area = cv2.contourArea(contour)
-            if area < min_area:
-                continue
-            motion_area += area
-            x, y, w, h = cv2.boundingRect(contour)
-            regions.append((int(x), int(y), int(w), int(h)))
-
+        zones: dict[str, ZoneResult] = {}
+        for zone in self._detect_zones:
+            zone_area, zone_regions = _qualifying_motion(
+                cv2.bitwise_and(binary, zone.mask),
+                self._zone_min_area_fraction(zone) * total_pixels,
+            )
+            if zone_area > 0:
+                zones[zone.id] = ZoneResult(
+                    score=min(1.0, zone_area / total_pixels), regions=zone_regions
+                )
+        # The camera as a whole is in motion while any of its zones is.
         return MotionResult(
-            score=min(1.0, motion_area / total_pixels),
+            score=max((hit.score for hit in zones.values()), default=0.0),
             changed_fraction=changed_fraction,
-            regions=regions,
+            regions=[region for hit in zones.values() for region in hit.regions],
+            zones=zones,
         )
 
     def _prepare(self, frame: np.ndarray) -> np.ndarray:
@@ -233,3 +310,20 @@ class MotionDetector:
             kernel = kernel if kernel % 2 else kernel + 1
             frame = cv2.GaussianBlur(frame, (kernel, kernel), 0)
         return frame
+
+
+def _qualifying_motion(
+    binary: np.ndarray, min_area: float
+) -> tuple[float, list[tuple[int, int, int, int]]]:
+    """Total area and bounding boxes of the contours at least ``min_area`` big."""
+    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    regions: list[tuple[int, int, int, int]] = []
+    motion_area = 0.0
+    for contour in contours:
+        area = cv2.contourArea(contour)
+        if area < min_area:
+            continue
+        motion_area += area
+        x, y, w, h = cv2.boundingRect(contour)
+        regions.append((int(x), int(y), int(w), int(h)))
+    return motion_area, regions

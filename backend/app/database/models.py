@@ -578,6 +578,9 @@ class MotionEvent(Base):
     snapshot_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     thumbnail_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
 
+    zones: Mapped[str | None] = mapped_column(Text, nullable=True)
+    """JSON list of the detection zones (``{"id", "name"}``) the event covered."""
+
     protected: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=utcnow)
 

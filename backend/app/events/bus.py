@@ -41,6 +41,8 @@ EventName = Literal[
     "camera.offline",
     "motion.started",
     "motion.ended",
+    "motion.zone_started",
+    "motion.zone_ended",
     "recording.started",
     "recording.stopped",
     "storage.warning",
@@ -58,6 +60,8 @@ CAMERA_ADDED: Final[EventName] = "camera.added"
 CAMERA_REMOVED: Final[EventName] = "camera.removed"
 MOTION_STARTED: Final[EventName] = "motion.started"
 MOTION_ENDED: Final[EventName] = "motion.ended"
+MOTION_ZONE_STARTED: Final[EventName] = "motion.zone_started"
+MOTION_ZONE_ENDED: Final[EventName] = "motion.zone_ended"
 RECORDING_STARTED: Final[EventName] = "recording.started"
 RECORDING_STOPPED: Final[EventName] = "recording.stopped"
 STORAGE_WARNING: Final[EventName] = "storage.warning"

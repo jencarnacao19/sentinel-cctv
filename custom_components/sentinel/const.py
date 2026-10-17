@@ -64,6 +64,8 @@ RECONNECT_MAX_SECONDS: Final = 60.0
 #: Events fired on the Home Assistant bus for use in automations.
 EVENT_MOTION_STARTED: Final = "sentinel_motion_started"
 EVENT_MOTION_ENDED: Final = "sentinel_motion_ended"
+EVENT_ZONE_MOTION_STARTED: Final = "sentinel_zone_motion_started"
+EVENT_ZONE_MOTION_ENDED: Final = "sentinel_zone_motion_ended"
 
 ATTR_CAMERA_ID: Final = "camera_id"
 ATTR_CAMERA_NAME: Final = "camera_name"
@@ -78,6 +80,8 @@ STATUS_ONLINE: Final = "online"
 # newer server can add frames without breaking an older integration.
 EVENT_TYPE_MOTION_STARTED: Final = "motion.started"
 EVENT_TYPE_MOTION_ENDED: Final = "motion.ended"
+EVENT_TYPE_MOTION_ZONE_STARTED: Final = "motion.zone_started"
+EVENT_TYPE_MOTION_ZONE_ENDED: Final = "motion.zone_ended"
 EVENT_TYPE_CAMERA_ONLINE: Final = "camera.online"
 EVENT_TYPE_CAMERA_OFFLINE: Final = "camera.offline"
 

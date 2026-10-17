@@ -28,7 +28,10 @@ from app.integrations.schemas import (
     HaCameraCapabilities,
     HaCameraStream,
     HaHandshake,
+    HaMotionZone,
 )
+from app.motion.manager import get_manager as get_motion_manager
+from app.motion.zones import detection_zones, parse_zones
 from app.recording.manager import get_manager as get_recording_manager
 
 router = APIRouter(prefix="/integrations", tags=["home-assistant"])
@@ -82,7 +85,13 @@ def _capabilities(camera: Camera) -> HaCameraCapabilities:
     )
 
 
-def _to_ha_camera(camera: Camera, *, motion_active: bool, storage_suspended: bool) -> HaCamera:
+def _to_ha_camera(
+    camera: Camera,
+    *,
+    motion_active: bool,
+    active_zones: set[str],
+    storage_suspended: bool,
+) -> HaCamera:
     return HaCamera(
         id=camera.id,
         name=camera.name,
@@ -94,6 +103,12 @@ def _to_ha_camera(camera: Camera, *, motion_active: bool, storage_suspended: boo
         recording_state=_recording_state(camera, storage_suspended=storage_suspended),
         motion_enabled=camera.motion_enabled,
         motion_active=motion_active,
+        motion_zones=[
+            HaMotionZone(id=zone.id, name=zone.name, active=zone.id in active_zones)
+            for zone in detection_zones(parse_zones(camera.motion_zones))
+        ]
+        if camera.motion_enabled
+        else [],
         capabilities=_capabilities(camera),
         stream=HaCameraStream(
             codec=camera.codec,
@@ -123,6 +138,7 @@ async def home_assistant_handshake(
     """
     cameras = await list_cameras(session)
     motion_active_ids = await _cameras_with_open_motion(session)
+    active_zones = get_motion_manager().active_zones()
     storage_suspended = get_recording_manager().suspended_reason is not None
 
     return HaHandshake(
@@ -134,6 +150,7 @@ async def home_assistant_handshake(
             _to_ha_camera(
                 camera,
                 motion_active=camera.id in motion_active_ids,
+                active_zones=active_zones.get(camera.id, set()),
                 storage_suspended=storage_suspended,
             )
             for camera in cameras
