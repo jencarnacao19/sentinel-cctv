@@ -1,14 +1,21 @@
-"""Controls that survive each other behind a reverse proxy.
+"""Answers that survive a reverse proxy, and controls that survive each other.
 
-A failure motivated this file. It put Cloudflare's *"the origin
-web server returned an invalid or incomplete response"* in front of the
-operator while having nothing to do with Cloudflare: one control request could
-occupy a vendor worker thread for tens of seconds, and those threads came from
-the interpreter's shared pool, so a camera that had stopped answering slowed
-every other request in the application until the proxy gave up on the origin.
+Two failures motivated this file, and both produced the same
+message in front of the operator -- Cloudflare's *"the origin web server
+returned an invalid or incomplete response"* -- while neither had anything to do
+with Cloudflare:
 
-The tests below assert the properties that make it impossible: the vendor pool
-is separate from everyone else's, and no request can outlive its deadline.
+1. the battery-camera live route committed ``200 OK, video/mp2t`` and *then*
+   authenticated, so a rejected credential went out as a successful response
+   with an empty body, which a proxy reports as a broken upstream;
+2. one control request could occupy a vendor worker thread for tens of seconds,
+   and those threads came from the interpreter's shared pool, so a camera that
+   had stopped answering slowed every other request in the application until
+   the proxy gave up on the origin.
+
+The tests below assert the properties that make both impossible: the status line
+is decided before the body starts, the vendor pool is separate from everyone
+else's, and no request can outlive its deadline.
 """
 
 from __future__ import annotations
@@ -20,11 +27,24 @@ from typing import Any
 import pytest
 from httpx import AsyncClient
 
-from app.cameras import tapo, vendor_pool
+from app.cameras import tapo, tapo_battery, vendor_pool
 from app.cameras.tapo import TapoManager
+from app.cameras.tapo_battery import (
+    TapoBatteryAuthError,
+    TapoBatteryManager,
+    TapoBatteryUnavailableError,
+)
+from app.config import Settings
+from app.database.models import Camera
 
 from .test_tapo import FakeTapo, _accept_host
 
+BATTERY_PAYLOAD = {
+    "name": "Shed",
+    "kind": "tapo_battery",
+    "host": "192.168.50.20",
+    "tapo_password": "local-third-party-secret",
+}
 TAPO_CAMERA = {
     "name": "Carport",
     "main_stream_url": "rtsp://192.168.50.217:554/stream1",
@@ -34,6 +54,94 @@ TAPO_CAMERA = {
     "manufacturer": "TP-Link",
     "model": "TC60",
 }
+
+
+class TestStreamingFailuresAreStatusCodes:
+    """A failure must reach the client as a status code, never as an empty 200."""
+
+    @pytest.fixture
+    def battery(self, monkeypatch: pytest.MonkeyPatch, settings: Settings) -> TapoBatteryManager:
+        monkeypatch.setattr(settings, "enable_tapo_battery_provider", True)
+        manager = TapoBatteryManager()
+        tapo_battery.set_manager(manager)
+        return manager
+
+    async def _camera(self, client: AsyncClient) -> dict[str, Any]:
+        response = await client.post("/api/v1/cameras", json=BATTERY_PAYLOAD)
+        assert response.status_code == 201, response.text
+        return response.json()
+
+    async def test_a_rejected_credential_is_a_422_and_not_an_empty_200(
+        self, admin_client: AsyncClient, battery: TapoBatteryManager, monkeypatch: Any
+    ) -> None:
+        camera = await self._camera(admin_client)
+
+        async def refuse(_camera: Camera, *, quality: str = "HD") -> Any:
+            raise TapoBatteryAuthError(
+                "The Tapo battery camera or local hub rejected the credentials."
+            )
+
+        monkeypatch.setattr(battery, "open_live", refuse)
+        response = await admin_client.get(
+            f"/api/v1/cameras/{camera['id']}/tapo-battery/live?quality=SD"
+        )
+        assert response.status_code == 422, response.text
+        assert response.headers["content-type"].startswith("application/json")
+        assert "rejected the credentials" in response.json()["detail"]
+        assert response.headers.get("content-type") != "video/mp2t"
+
+    async def test_an_unreachable_camera_is_a_424_and_not_an_empty_200(
+        self, admin_client: AsyncClient, battery: TapoBatteryManager, monkeypatch: Any
+    ) -> None:
+        camera = await self._camera(admin_client)
+
+        async def refuse(_camera: Camera, *, quality: str = "HD") -> Any:
+            raise TapoBatteryUnavailableError(
+                "The Tapo battery camera or local hub did not respond."
+            )
+
+        monkeypatch.setattr(battery, "open_live", refuse)
+        response = await admin_client.get(f"/api/v1/cameras/{camera['id']}/tapo-battery/live")
+        assert response.status_code == 424, response.text
+        assert "did not respond" in response.json()["detail"]
+
+    async def test_a_failed_open_releases_the_camera_for_the_next_attempt(
+        self, admin_client: AsyncClient, battery: TapoBatteryManager, monkeypatch: Any
+    ) -> None:
+        """A reservation leaked on failure would lock the camera out for good."""
+        camera = await self._camera(admin_client)
+
+        async def refuse(_camera: Camera, *, quality: str = "HD") -> Any:
+            raise TapoBatteryUnavailableError("nope")
+
+        monkeypatch.setattr(battery, "open_live", refuse)
+        for _ in range(3):
+            response = await admin_client.get(f"/api/v1/cameras/{camera['id']}/tapo-battery/live")
+            assert response.status_code == 424, response.text
+        assert not battery.live_active(camera["id"])
+
+    async def test_a_successful_open_streams_the_media_it_was_given(
+        self, admin_client: AsyncClient, battery: TapoBatteryManager, monkeypatch: Any
+    ) -> None:
+        camera = await self._camera(admin_client)
+        payload = bytes([0x47]) + bytes(187)
+
+        class Session:
+            async def chunks(self, **kwargs: Any) -> Any:
+                del kwargs
+                yield payload
+
+            async def close(self) -> None:
+                return None
+
+        async def open_live(_camera: Camera, *, quality: str = "HD") -> Any:
+            return Session()
+
+        monkeypatch.setattr(battery, "open_live", open_live)
+        response = await admin_client.get(f"/api/v1/cameras/{camera['id']}/tapo-battery/live")
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "video/mp2t"
+        assert response.content == payload, "a 200 must carry the body it promised"
 
 
 class TestVendorThreadIsolation:
@@ -58,7 +166,7 @@ class TestVendorThreadIsolation:
 
         from app.cameras import ptz
 
-        for module in (tapo, ptz):
+        for module in (tapo, tapo_battery, ptz):
             path = module.__file__
             assert path is not None
             source = Path(path).read_text(encoding="utf-8")

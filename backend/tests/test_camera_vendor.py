@@ -95,13 +95,12 @@ class TestPositiveIdentification:
         assert result.supported, model
         assert result.source is TapoControlSource.METADATA
 
-    def test_a_battery_camera_from_the_dev_build_is_offered_no_controls(self) -> None:
+    def test_a_battery_camera_is_always_tapo(self) -> None:
         result = classify_tapo_controls(
             _camera(kind=CameraKind.TAPO_BATTERY, host="192.168.50.220")
         )
-        assert not result.supported
+        assert result.supported
         assert result.source is TapoControlSource.KIND
-        assert result.reason == "Tapo battery cameras are not supported in this release."
 
 
 class TestNegativeIdentification:
@@ -251,3 +250,22 @@ class TestApiSurface:
         # Now it is allowed through the gate and fails on its own merits.
         allowed = await admin_client.get(f"/api/v1/cameras/{created['id']}/tapo/capabilities")
         assert allowed.status_code != 409
+
+    async def test_the_opt_in_does_not_apply_to_battery_cameras(
+        self, admin_client: AsyncClient, settings: Any, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(settings, "enable_tapo_battery_provider", True)
+        created = await admin_client.post(
+            "/api/v1/cameras",
+            json={
+                "name": "Patio",
+                "kind": "tapo_battery",
+                "host": "192.168.50.220",
+                "tapo_password": "local-secret",
+            },
+        )
+        assert created.status_code == 201, created.text
+        rejected = await admin_client.patch(
+            f"/api/v1/cameras/{created.json()['id']}", json={"tapo_controls_enabled": False}
+        )
+        assert rejected.status_code == 422

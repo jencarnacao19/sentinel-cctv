@@ -10,7 +10,7 @@ import type { StatusTone } from '@/components/ui/status'
  * Deliberately a monochrome symbol from the same family as the rest of the
  * interface, never a two-letter avatar. "CM", "MZ" and "ST" told an operator
  * nothing about whether a row was an RTSP camera, one channel of a shared NVR
- * or a battery device that only the dev build supports -- which is the only
+ * or a battery device with no continuous recorder -- which is the only
  * distinction that changes what the row can do.
  *
  * The NVR case is decided by the camera's own `nvr_group`, assigned by the

@@ -5,9 +5,10 @@ a battery camera?", which is true of every RTSP source on the network. The
 result was a *Tapo controls* button on every Hikvision NVR channel, and a
 support burden made of vendor calls that were never going to succeed.
 
-The decision here is deliberately narrow. Only two things make Sentinel offer
+The decision here is deliberately narrow. Only three things make Sentinel offer
 the controls on its own:
 
+* the camera *is* a Tapo battery device (its whole transport is proprietary);
 * its manufacturer string names TP-Link or Tapo;
 * its model string is a recognised Tapo model.
 
@@ -224,13 +225,13 @@ def classify_tapo_controls(camera: Camera) -> TapoClassification:
     from app.database.models import CameraKind
 
     if camera.kind is CameraKind.TAPO_BATTERY:
-        # Battery cameras are developed on the dev build. A camera that build
-        # left in the database is kept, but a release never contacts it.
+        # Not overridable: the whole transport is the vendor's, so there is no
+        # meaningful "off" that still leaves a working camera.
         return TapoClassification(
-            supported=False,
+            supported=True,
             source=TapoControlSource.KIND,
             detected_vendor="Tapo",
-            reason="Tapo battery cameras are not supported in this release.",
+            reason="This camera is registered as a Tapo battery device.",
         )
 
     if camera.tapo_controls_enabled is False:

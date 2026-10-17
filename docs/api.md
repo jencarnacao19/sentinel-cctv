@@ -96,7 +96,7 @@ or a verified Cloudflare Access assertion.
 | POST | `/cameras` | admin | Add a camera; also pushes the change to go2rtc and the recorder. |
 | POST | `/cameras/test-stream` | admin | Probe a URL that has not been saved. Rate limited (20/minute — it spawns FFprobe). |
 | GET | `/cameras/{id}` | any | |
-| PATCH | `/cameras/{id}` | admin | Partial update; see the password semantics below. `recording_profile` accepts `auto`, `passthrough`, `resilient` or `normalised`. `recording_source_mode` accepts `auto`, `relay` or `direct`; both explicit modes remain LAN-only and disable failover for that camera. `recording_segment_seconds` accepts 10–300 or `null` to inherit the system default. Changing any of these settings restarts only that recorder. `tapo_patrol_mode` accepts `horizontal`, `vertical` or `null`; optional `tapo_password` is write-only and separate from RTSP/ONVIF credentials. `recording_enabled` starts or stops that camera's recorder, exactly as `PUT /cameras/{id}/recording` does. `tapo_controls_enabled` is tri-state: `null` leaves the decision to detection, `true`/`false` are an administrator overriding it. A `tapo_battery` camera, which only the dev build can add, refuses every change with `422`. |
+| PATCH | `/cameras/{id}` | admin | Partial update; see the password semantics below. `recording_profile` accepts `auto`, `passthrough`, `resilient` or `normalised`. `recording_source_mode` accepts `auto`, `relay` or `direct`; both explicit modes remain LAN-only and disable failover for that camera. `recording_segment_seconds` accepts 10–300 or `null` to inherit the system default. Changing any of these settings restarts only that recorder. `tapo_patrol_mode` accepts `horizontal`, `vertical` or `null`; optional `tapo_password` is write-only and separate from RTSP/ONVIF credentials. `recording_enabled` starts or stops that camera's recorder, exactly as `PUT /cameras/{id}/recording` does. `tapo_controls_enabled` is tri-state: `null` leaves the decision to detection, `true`/`false` are an administrator overriding it; neither field is accepted for a `tapo_battery` camera. |
 | DELETE | `/cameras/{id}` | admin | Cascades to its segments and events. |
 | POST | `/cameras/{id}/test` | admin | Probes the saved camera and updates its status/codec fields. Rate limited. |
 | PUT | `/cameras/{id}/recording` | admin / camera_control | Starts or stops **only this camera's** recorder. Body `{"enabled": bool, "confirm": bool}`; `confirm` must be `true` to stop, because the footage from the paused period cannot be recovered. Answers with the *observed* recorder state — `recording`, `off`, `paused`, `failed` or `unsupported` — not an echo of the request, so a start that failed is reported as `failed`. `409` for a camera that has no continuous recorder. Live view, ONVIF, motion detection, the other cameras and global privacy mode are untouched. |
@@ -238,13 +238,42 @@ Reasons and stream faults come from closed vocabularies. Camera output is
 classified into a label and discarded — no captured FFmpeg text, URL, host,
 path or credential is stored on an incident or returned by these routes.
 
-### Tapo battery cameras
+### Tapo battery cameras (`backend/app/cameras/tapo_battery_router.py`, prefix `/cameras`)
 
-Not part of releases. They are being developed on the `dev` branch and its
-`ghcr.io/jencarnacao19/sentinel-cctv:dev` image. A release refuses to add one
-(`422`). A camera the dev build added stays in the database and is listed with
-`kind=tapo_battery`, but it cannot be changed, recorded, streamed or sent Tapo
-commands. `DELETE /cameras/{id}` removes it.
+Disabled unless `SENTINEL_ENABLE_TAPO_BATTERY_PROVIDER=true`. All operations
+are rate limited, confined to a private/local host and refused while privacy
+mode is active. A saved battery camera has `kind=tapo_battery`, no RTSP URL,
+`recording_mode=events` and no Sentinel motion worker.
+
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| POST | `/cameras/tapo-battery/test` | admin | Proves local authentication and reads normalised device/battery state before saving. The password is write-only. |
+| GET | `/cameras/{id}/tapo-battery/status` | any principal | Reads normalised battery, charging, model and firmware fields over the LAN. |
+| GET | `/cameras/{id}/tapo-battery/clips` | any principal | Lists camera-owned event clips for a UTC range of at most seven days and marks clips already imported. |
+| POST | `/cameras/{id}/tapo-battery/sync` | admin | Downloads a bounded number of recent clips and idempotently indexes them as `origin=tapo_event` timeline segments. |
+| GET | `/cameras/{id}/tapo-battery/live` | any principal | One bounded, on-demand Direct Stream as MPEG-TS. A second session for the same camera is refused. The vendor session is opened **before** the response starts, so a rejected credential is a `502` and an unreachable camera a `503`; the route never answers `200` with an empty body. |
+| GET | `/cameras/{id}/tapo-battery/timed-recording/options` | admin | Durations this installation allows, the hard ceiling, and the current battery percentage (`null` when the camera would not answer) plus the warning text to show before confirming. |
+| PUT | `/cameras/tapo-battery/timed-recording/max-minutes` | admin | Sets the longest timed recording this installation permits, `1`–`120`. |
+| GET | `/cameras/{id}/tapo-battery/timed-recording` | any principal | Progress of a running session, or `null`. Answered from memory and never contacts the camera, so it is safe to poll every second against a device on a battery. |
+| POST | `/cameras/{id}/tapo-battery/timed-recording` | admin | Starts a bounded recording. Body `{"minutes": int, "accept_battery_drain": true}`; the flag is the administrator explicitly accepting that the camera stays awake and may end up flat. Returns `202` as soon as the camera has answered — the recording itself is not held open behind the request, because a proxy would cut an hour-long one off long before it finished. |
+| DELETE | `/cameras/{id}/tapo-battery/timed-recording` | admin | Stops the session and keeps what was captured. |
+
+The protected viewer camera list includes battery cameras so imported clips are
+selectable in Home Assistant playback, but its live wall renders an inert event
+tile rather than opening a proprietary stream. On-demand Direct Stream remains
+an administrator/local-principal operation in this experimental release.
+
+**Timed recording** writes media to a `.part.ts` file as it arrives, remuxes it
+to MP4 with a stream copy, and indexes it as an `origin=tapo_manual` segment, so
+the ordinary timeline and playback routes serve it like any other footage. The
+part file is the recovery marker and is only deleted once the segment row is
+committed: a crash between the two leaves it on disk, and the next start-up
+finalises and indexes it. Every way a session can end early — the firmware
+closing the stream, privacy mode, a manual stop, the server shutting down, the
+battery running out — keeps the clip and reports the duration actually captured.
+Reconnection after an early close is bounded, backed off and LAN-only. Nothing
+starts a session automatically, and only one live view *or* timed recording may
+be open per camera.
 
 ### Local Tapo control (`backend/app/cameras/tapo_router.py`, prefix `/cameras`)
 

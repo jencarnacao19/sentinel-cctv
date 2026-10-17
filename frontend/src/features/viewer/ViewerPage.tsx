@@ -1,4 +1,4 @@
-import { Video } from 'lucide-react'
+import { BatteryCharging, Video } from 'lucide-react'
 import { useState } from 'react'
 
 import { ApiError } from '@/api/client'
@@ -19,10 +19,10 @@ export function ViewerPage() {
   const cameras = useViewerCameras()
   const system = useViewerSystemStatus()
   const [layout, setLayout] = useState<Layout>('auto')
-  // A battery camera the dev build added has nothing to show in a release.
-  const list = (cameras.data ?? []).filter((camera) => camera.kind === 'rtsp')
+  const list = cameras.data ?? []
+  const rtspCount = list.filter((camera) => camera.kind === 'rtsp').length
   const columns = columnsFor(layout, list.length)
-  const useSubstream = layout !== '1' && list.length > 1
+  const useSubstream = layout !== '1' && rtspCount > 1
   const denied = cameras.error instanceof ApiError && cameras.error.isUnauthorized
   const privacyMessage = system.data?.privacy_enabled
     ? (system.data.privacy_message ?? 'Cameras are paused by privacy mode.')
@@ -75,28 +75,45 @@ export function ViewerPage() {
           </div>
         ) : list.length > 0 ? (
           <div className={cn('grid gap-3', columns)}>
-            {list.map((camera) => (
-              <CameraTile
-                key={camera.id}
-                name={camera.name}
-                meta={
-                  camera.stream.width && camera.stream.height
-                    ? `${camera.stream.width}×${camera.stream.height}`
-                    : camera.status
-                }
-              >
-                <VideoPlayer
-                  flush
-                  cameraId={camera.id}
-                  cameraName={camera.name}
-                  sub={useSubstream && camera.has_substream}
-                  viewer
-                  ptz={camera.ptz_supported}
-                  ptzZoom={camera.ptz_zoom_supported}
-                  privacyMessage={privacyMessage}
-                />
-              </CameraTile>
-            ))}
+            {list.map((camera) =>
+              camera.kind === 'tapo_battery' ? (
+                <CameraTile key={camera.id} name={camera.name} meta="Tapo battery · event clips">
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-(--color-surface) px-6 text-center">
+                    <span className="flex size-11 items-center justify-center rounded-full bg-(--color-bg-subtle) text-(--color-fg-muted)">
+                      <BatteryCharging className="size-5" aria-hidden="true" />
+                    </span>
+                    <div>
+                      <p className="text-sm font-medium">Event-based battery camera</p>
+                      <p className="mt-1 text-xs leading-4 text-(--color-fg-subtle)">
+                        Recorded events are under Playback. On-demand live requires an
+                        administrator.
+                      </p>
+                    </div>
+                  </div>
+                </CameraTile>
+              ) : (
+                <CameraTile
+                  key={camera.id}
+                  name={camera.name}
+                  meta={
+                    camera.stream.width && camera.stream.height
+                      ? `${camera.stream.width}×${camera.stream.height}`
+                      : camera.status
+                  }
+                >
+                  <VideoPlayer
+                    flush
+                    cameraId={camera.id}
+                    cameraName={camera.name}
+                    sub={useSubstream && camera.has_substream}
+                    viewer
+                    ptz={camera.ptz_supported}
+                    ptzZoom={camera.ptz_zoom_supported}
+                    privacyMessage={privacyMessage}
+                  />
+                </CameraTile>
+              ),
+            )}
           </div>
         ) : !cameras.isError ? (
           <EmptyState

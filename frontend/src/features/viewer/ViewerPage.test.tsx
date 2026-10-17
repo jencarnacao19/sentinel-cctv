@@ -98,8 +98,7 @@ describe('ViewerPage', () => {
     renderWithProviders(<ViewerPage />)
 
     expect(await screen.findByText('Stream: Front door')).toBeInTheDocument()
-    // A battery camera the dev build added has no live view in a release.
-    expect(screen.queryByText('Tool shed')).not.toBeInTheDocument()
+    expect(screen.getByText('Event-based battery camera')).toBeInTheDocument()
     expect(
       screen.getByText(
         'View and export footage here. Configuration requires the administrator login.',
