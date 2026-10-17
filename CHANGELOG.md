@@ -9,6 +9,12 @@ requirements are described in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 
 ## [Unreleased]
 
+### Added
+
+- **Ready-to-run server images.** Each release now publishes
+  `ghcr.io/jencarnacao19/sentinel-cctv` for `amd64` and `arm64`, and the quick
+  start installs from that image instead of building from source.
+
 ## [0.1.0] - 2026-10-17
 
 ### Added

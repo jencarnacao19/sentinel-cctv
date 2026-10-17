@@ -25,7 +25,7 @@ services:
     volumes:
       # Database, thumbnails, snapshots and the local encryption secret.
       - sentinel-data:/data
-      # Recordings. Point this at your dedicated storage; see docs/storage.md.
+      # Recordings. Point this at your dedicated storage; see docs/recording.md.
       # A bind mount is deliberate here -- recordings should outlive the container.
       - ./recordings:/recordings
 
@@ -35,7 +35,7 @@ services:
       SENTINEL_TIMEZONE: ${TZ:-Europe/Lisbon}
       SENTINEL_LOG_LEVEL: ${SENTINEL_LOG_LEVEL:-INFO}
       # Optional footage operator. Administration always keeps its normal
-      # login even when this is enabled. See README "Restricted viewer".
+      # login even when this is enabled. See docs/remote-access.md.
       SENTINEL_VIEWER_ENABLED: ${SENTINEL_VIEWER_ENABLED:-false}
       SENTINEL_VIEWER_TRUSTED_HOSTS: ${SENTINEL_VIEWER_TRUSTED_HOSTS:-}
       # Access SSO requires cryptographic validation; empty settings deny that

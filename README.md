@@ -18,18 +18,25 @@ integration. Runs on a small home server without a GPU.
 
 ## Quick start
 
-You need a computer or server that runs Docker (a Proxmox VM or LXC works),
-on the same network as your cameras.
+You need a Linux computer or server with Docker (a Proxmox VM or LXC works),
+on the same network as your cameras. Images are published for `amd64` and
+`arm64` (for example a Raspberry Pi 4 or 5).
 
 **1. Install Sentinel**
 
 ```bash
-git clone https://github.com/jencarnacao19/sentinel-cctv.git
-cd sentinel-cctv
-docker compose -f compose.yml -f compose.source.yml up -d --build
+mkdir sentinel && cd sentinel
+curl -fsSLO https://raw.githubusercontent.com/jencarnacao19/sentinel-cctv/main/compose.yml
+mkdir recordings && sudo chown 1000:1000 recordings
+docker compose up -d
 ```
 
-The first build takes a few minutes.
+Recordings are saved in the `recordings` folder. To keep them on another disk,
+change `./recordings` in `compose.yml` before starting.
+
+To build the image yourself instead, clone this repository and run
+`docker compose -f compose.yml -f compose.source.yml up -d --build`; recordings
+then go to `/recordings`, which must belong to uid 1000.
 
 **2. Open Sentinel** in a browser at `http://<server-ip>:8090` and create your
 administrator account. `<server-ip>` is the local address of the machine
