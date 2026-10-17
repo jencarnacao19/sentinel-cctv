@@ -19,6 +19,7 @@ import ipaddress
 import secrets
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from urllib.parse import urlsplit, urlunsplit
 from xml.etree import ElementTree as ET
 from xml.sax.saxutils import escape
 
@@ -153,7 +154,9 @@ async def get_media_xaddr(
     Consumer cameras overwhelmingly answer every ONVIF service at the single
     address WS-Discovery already gave us, but that is an implementation
     convenience, not something the spec guarantees -- some NVRs and higher-end
-    cameras put Media at a distinct path, so this call is not skippable.
+    cameras put Media at a distinct path, so this call is not skippable. The
+    advertised port and path are kept, but never another host: see
+    :func:`pin_service_address`.
     """
     body = f'<GetCapabilities xmlns="{_DEVICE_NS}"><Category>Media</Category></GetCapabilities>'
     try:
@@ -173,11 +176,35 @@ async def get_media_xaddr(
         return device_xaddr
 
     media = xmlsafe.find_first(root, "Media")
-    if media is not None:
+    device_host = urlsplit(device_xaddr).hostname
+    if media is not None and device_host:
         xaddr = xmlsafe.find_first(media, "XAddr")
         if xaddr is not None and xaddr.text and xaddr.text.strip():
-            return xaddr.text.strip()
+            pinned = pin_service_address(xaddr.text.strip(), device_host)
+            if pinned is not None:
+                return pinned
     return device_xaddr
+
+
+def pin_service_address(url: str, host: str) -> str | None:
+    """Keep an advertised ONVIF service's scheme, port and path, on ``host``.
+
+    A device chooses the service addresses it reports. Following one to a
+    different host would let any device on the network make Sentinel send
+    requests wherever it likes, including to go2rtc's API on this machine's
+    loopback. Returns ``None`` for anything that is not an http(s) URL.
+    """
+    parts = urlsplit(url)
+    try:
+        port = parts.port
+    except ValueError:
+        return None
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        return None
+    if ":" in host and not host.startswith("["):
+        host = f"[{host}]"
+    netloc = host if port is None else f"{host}:{port}"
+    return urlunsplit((parts.scheme, netloc, parts.path, parts.query, ""))
 
 
 @dataclass(frozen=True, slots=True)

@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Any
 
 from app import __version__
+from app.cameras.rtsp import InvalidStreamUrlError, parse_stream_url
 from app.config import Settings
 from app.database.session import dispose_engine
 from app.logging_config import get_logger
@@ -246,6 +247,36 @@ def _assert_safe_members(archive: zipfile.ZipFile) -> None:
             raise BackupError("This archive contains an implausible file path.")
 
 
+def _assert_rtsp_stream_urls(database: Path) -> None:
+    """Refuse a backup whose cameras point anywhere but an RTSP stream.
+
+    The API only ever stores RTSP URLs, but a backup is a file that can be
+    edited by hand. These values are written into go2rtc's configuration, where
+    an ``exec:`` source would run a command as soon as the stream started.
+    """
+    connection = sqlite3.connect(database)
+    try:
+        rows = connection.execute(
+            "SELECT name, main_stream_url, sub_stream_url FROM cameras"
+        ).fetchall()
+    except sqlite3.Error as exc:
+        raise BackupError("The database inside this backup is not readable.") from exc
+    finally:
+        connection.close()
+
+    for name, *urls in rows:
+        for url in urls:
+            if not url:
+                continue
+            try:
+                parse_stream_url(str(url))
+            except InvalidStreamUrlError as exc:
+                raise BackupError(
+                    f"Camera '{name}' in this backup has a stream address that is not "
+                    "RTSP, so the backup was refused."
+                ) from exc
+
+
 def _apply(settings: Settings, archive_path: Path) -> BackupManifest:
     """Blocking; always called through a thread."""
     manifest = read_manifest(archive_path)
@@ -271,6 +302,8 @@ def _apply(settings: Settings, archive_path: Path) -> BackupManifest:
                 probe.close()
         except sqlite3.Error as exc:
             raise BackupError("The database inside this backup is not readable.") from exc
+
+        _assert_rtsp_stream_urls(staged)
 
         target_path = settings.database_path
         target_path.parent.mkdir(parents=True, exist_ok=True)

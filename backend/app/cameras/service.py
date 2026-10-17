@@ -92,6 +92,18 @@ def resolve_stream_url(camera: Camera, *, sub: bool = False) -> str | None:
     base = camera.sub_stream_url if sub else camera.main_stream_url
     if not base:
         return None
+    # Checked again here, not only when the API accepted it: this value goes
+    # straight into go2rtc.yaml and FFmpeg's argument list, and a database
+    # restored from elsewhere could hold anything. In go2rtc's config an
+    # "exec:" source would run a command.
+    try:
+        parse_stream_url(base)
+    except InvalidStreamUrlError:
+        logger.warning(
+            "Ignoring a stored stream URL that is not RTSP",
+            extra={"camera_id": camera.id, "substream": sub},
+        )
+        return None
     return build_stream_url(base, camera.username, try_decrypt_secret(camera.encrypted_password))
 
 

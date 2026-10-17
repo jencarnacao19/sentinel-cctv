@@ -38,6 +38,7 @@ from app.motion.manager import get_manager as get_motion_manager
 from app.recording.export import get_manager as get_export_manager
 from app.recording.manager import get_manager as get_recording_manager
 from app.reliability.monitor import get_monitor as get_reliability_monitor
+from app.security.origin import request_origin
 from app.security.paths import UnsafePathError, resolve_within
 from app.security.redaction import redact_text
 from app.storage.cleanup import get_manager as get_cleanup_manager
@@ -237,16 +238,6 @@ def _install_exception_handlers(app: FastAPI) -> None:
         )
 
 
-def _request_origin(request: Request) -> str:
-    """Return the public origin seen by the client, accounting for one proxy hop."""
-
-    forwarded_proto = request.headers.get("x-forwarded-proto", "").split(",", 1)[0].strip()
-    scheme = forwarded_proto or request.url.scheme
-    forwarded_host = request.headers.get("x-forwarded-host", "").split(",", 1)[0].strip()
-    host = forwarded_host or request.headers.get("host", "")
-    return f"{scheme}://{host}".rstrip("/")
-
-
 def _cross_site_cookie_request(request: Request, settings: Settings) -> bool:
     """Detect an unsafe browser request trying to authenticate with a cookie.
 
@@ -274,7 +265,7 @@ def _cross_site_cookie_request(request: Request, settings: Settings) -> bool:
         parsed = urlsplit(origin)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             return True
-        allowed_origins = {_request_origin(request), *settings.cors_origins}
+        allowed_origins = {request_origin(request), *settings.cors_origins}
         return origin not in allowed_origins
 
     # Browsers send at least one of Origin or Sec-Fetch-Site for an unsafe

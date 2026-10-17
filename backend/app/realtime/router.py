@@ -35,6 +35,7 @@ from app.config import get_settings
 from app.database.session import get_session_factory
 from app.events.bus import Event, EventBus, Subscription, get_bus
 from app.logging_config import get_logger
+from app.security.origin import websocket_origin_allowed
 
 router = APIRouter(prefix="/events", tags=["events"])
 logger = get_logger("API")
@@ -179,6 +180,11 @@ async def _write_events(
 @router.websocket("/stream")
 async def event_stream(websocket: WebSocket) -> None:
     settings = get_settings()
+    if not websocket_origin_allowed(websocket, settings):
+        await websocket.close(
+            code=status.WS_1008_POLICY_VIOLATION, reason="Cross-site socket refused"
+        )
+        return
 
     # Resolved by hand rather than through FastAPI's Depends, exactly like
     # app.streaming.router's live-view socket: authentication must finish

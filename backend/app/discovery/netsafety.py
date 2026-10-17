@@ -77,6 +77,33 @@ async def ensure_scannable_host(host: str) -> None:
     check is a proportionate defence against the common case -- a typo'd or
     malicious public hostname -- without pretending to be airtight.
     """
+    for address in await _resolve(host):
+        if not _is_private(address):
+            raise UnscannableHostError(
+                f"'{host}' resolves to {address}, which is not a private address. "
+                "Discovery only scans devices on your own network."
+            )
+
+
+async def ensure_onvif_host(host: str) -> None:
+    """:func:`ensure_scannable_host`, and never this machine itself.
+
+    ONVIF calls are HTTP POSTs to an address that a device on the network
+    chose, starting with the one in an unauthenticated WS-Discovery reply.
+    Loopback is where go2rtc's API and Sentinel itself listen, so a reply
+    pointing there must never be followed. A camera served from this same
+    machine can still be added by its RTSP URL; it just cannot be discovered.
+    """
+    await ensure_scannable_host(host)
+    for address in await _resolve(host):
+        if address.is_loopback:
+            raise UnscannableHostError(
+                f"'{host}' resolves to {address}, which is this machine. "
+                "ONVIF discovery only contacts other devices on your network."
+            )
+
+
+async def _resolve(host: str) -> list[ipaddress.IPv4Address | ipaddress.IPv6Address]:
     try:
         parsed = ipaddress.ip_address(host)
     except ValueError:
@@ -105,10 +132,4 @@ async def ensure_scannable_host(host: str) -> None:
             # An IPv6 scope id ("fe80::1%eth0") is not part of the address
             # itself and ipaddress rejects it outright.
             addresses.append(ipaddress.ip_address(raw.split("%", 1)[0]))
-
-    for address in addresses:
-        if not _is_private(address):
-            raise UnscannableHostError(
-                f"'{host}' resolves to {address}, which is not a private address. "
-                "Discovery only scans devices on your own network."
-            )
+    return addresses

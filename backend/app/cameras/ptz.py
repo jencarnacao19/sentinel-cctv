@@ -12,7 +12,7 @@ from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import urlsplit
 from xml.etree import ElementTree as ET
 from xml.sax.saxutils import escape
 
@@ -116,14 +116,10 @@ def _service_xaddr(root: ET.Element, service: str) -> str | None:
 
 def _pin_service_to_camera(url: str, camera_host: str) -> str:
     """Retain the advertised port/path but never follow it to another host."""
-    parts = urlsplit(url)
-    if parts.scheme not in ("http", "https") or not parts.hostname:
+    pinned = onvif.pin_service_address(url, camera_host)
+    if pinned is None:
         raise PtzError("The camera returned an invalid ONVIF service address.")
-    host = camera_host
-    if ":" in host and not host.startswith("["):
-        host = f"[{host}]"
-    netloc = host if parts.port is None else f"{host}:{parts.port}"
-    return urlunsplit((parts.scheme, netloc, parts.path, parts.query, ""))
+    return pinned
 
 
 def _profile_tokens(root: ET.Element) -> tuple[list[str], dict[str, str]]:
@@ -679,12 +675,15 @@ class PtzManager:
             or not camera.onvif_profile_token
         ):
             raise PtzNotConfiguredError("PTZ is not available for this camera.")
+        # Pinned on every use, not only at detection: the stored address may
+        # come from a restored database rather than from this camera.
+        xaddr = _pin_service_to_camera(camera.onvif_ptz_xaddr, camera.host)
         password = try_decrypt_secret(camera.encrypted_password)
         tapo_password = try_decrypt_secret(camera.encrypted_tapo_password)
         return _ControlTarget(
             camera_id=camera.id,
             camera_name=camera.name,
-            xaddr=camera.onvif_ptz_xaddr,
+            xaddr=xaddr,
             profile_token=camera.onvif_profile_token,
             zoom_supported=camera.ptz_zoom_supported,
             username=camera.username,

@@ -5,7 +5,6 @@ import {
   RECONNECT_DELAYS_MS,
   RECONNECT_JITTER,
   type BackoffTimer,
-  type TimerHandle,
 } from '@/features/live/reconnect'
 
 /**
@@ -19,10 +18,10 @@ function fakeTimer() {
     set(callback, _delayMs) {
       const handle = next++
       queued.set(handle, callback)
-      return handle as unknown as TimerHandle
+      return handle
     },
     clear(handle) {
-      queued.delete(handle as unknown as number)
+      queued.delete(handle)
     },
   }
   return {

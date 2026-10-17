@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import os
+import re
 import stat
+from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
@@ -15,6 +18,8 @@ from pydantic import SecretStr
 from app.config import Settings
 from app.database.models import Camera
 from app.database.session import session_scope
+from app.streaming import client as client_module
+from app.streaming import router as router_module
 from app.streaming.config import (
     G711_AUDIO_CODECS,
     SOURCE_SUFFIX,
@@ -130,6 +135,21 @@ class TestConfigDocument:
         config = build_config(settings, [])
         assert config["api"]["listen"].startswith("127.0.0.1:")
         assert config["rtsp"]["listen"].startswith("127.0.0.1:")
+
+    def test_the_api_registers_only_the_paths_sentinel_uses(self, settings: Settings) -> None:
+        """go2rtc's exit, restart and config endpoints must not exist: a request
+        steered to loopback could otherwise stop every recording."""
+        api = build_config(settings, [])["api"]
+        assert "origin" not in api
+        allowed = set(api["allow_paths"])
+        assert not allowed & {"/api/exit", "/api/restart", "/api/config", "/api/log"}
+
+        client_source = Path(inspect.getsourcefile(client_module) or "").read_text(encoding="utf-8")
+        router_source = Path(inspect.getsourcefile(router_module) or "").read_text(encoding="utf-8")
+        used = set(re.findall(r'"(/api(?:/[a-z0-9_.]+)*)"', client_source))
+        used |= set(re.findall(r"(/api/ws)\?", router_source))
+        assert used, "expected to find the go2rtc paths Sentinel calls"
+        assert used <= allowed, f"missing from allow_paths: {sorted(used - allowed)}"
 
     def test_webrtc_binds_publicly_because_the_browser_must_reach_it(
         self, settings: Settings

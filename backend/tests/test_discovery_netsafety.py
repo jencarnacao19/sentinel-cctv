@@ -99,3 +99,31 @@ class TestSlowResolution:
         monkeypatch.setattr(asyncio.get_running_loop(), "getaddrinfo", hangs_forever)
         with pytest.raises(netsafety.UnscannableHostError, match="ould not resolve"):
             await netsafety.ensure_scannable_host("slow-dns-camera")
+
+
+class TestOnvifTargets:
+    """ONVIF calls are POSTs to an address a device chose; never this machine."""
+
+    @pytest.mark.parametrize("address", ["127.0.0.1", "127.8.9.10", "::1"])
+    async def test_loopback_is_refused(self, address: str) -> None:
+        with pytest.raises(netsafety.UnscannableHostError, match="this machine"):
+            await netsafety.ensure_onvif_host(address)
+
+    async def test_a_hostname_resolving_to_loopback_is_refused(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        async def fake_getaddrinfo(host: str, port: object) -> list[tuple[object, ...]]:
+            del host, port
+            return [(None, None, None, None, ("127.0.0.1", 0))]
+
+        monkeypatch.setattr(asyncio.get_running_loop(), "getaddrinfo", fake_getaddrinfo)
+        with pytest.raises(netsafety.UnscannableHostError, match="this machine"):
+            await netsafety.ensure_onvif_host("camera.attacker.example")
+
+    @pytest.mark.parametrize("address", ["192.168.50.50", "10.0.0.5", "169.254.1.1", "fd00::1"])
+    async def test_devices_on_the_network_are_accepted(self, address: str) -> None:
+        await netsafety.ensure_onvif_host(address)  # must not raise
+
+    async def test_public_addresses_are_still_refused(self) -> None:
+        with pytest.raises(netsafety.UnscannableHostError, match="not a private address"):
+            await netsafety.ensure_onvif_host("8.8.8.8")

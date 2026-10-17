@@ -15,6 +15,30 @@ requirements are described in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
   `ghcr.io/jencarnacao19/sentinel-cctv` for `amd64` and `arm64`, and the quick
   start installs from that image instead of building from source.
 
+### Security
+
+- **Live-stream and event sockets refuse other websites.** A browser's
+  `Origin` must now match the host the socket was opened on. Before, a page on
+  another site could open the viewer's live-stream socket with a household
+  member's viewer cookie (which is `SameSite=None` for the Home Assistant
+  iframe) and read the video, given a camera's id.
+- **ONVIF replies can no longer steer Sentinel's requests.** The Media service
+  address a device reports is kept on that device's own host, and discovery
+  never contacts this machine's loopback. A device on the network could
+  previously point Sentinel at go2rtc's API, whose exit endpoint stopped every
+  live view and recording.
+- **go2rtc's API registers only the paths Sentinel uses.** Its exit, restart,
+  config and log endpoints no longer exist, and it no longer sends a CORS
+  header to every origin.
+- **Stored stream URLs are checked where they are used.** A non-RTSP address in
+  the database is ignored instead of being written into go2rtc's configuration,
+  and a backup containing one is refused. A hand-edited backup with an
+  `exec:` source could previously run a command inside the container once
+  restored. Stored PTZ addresses are pinned to the camera on every use.
+- **Dependencies:** PyJWT 2.15.0, urllib3 2.8.0 and multidict 6.9.1 replace
+  versions with published advisories; Vitest 5 and refreshed development
+  dependencies clear the remaining `npm audit` findings.
+
 ## [0.1.0] - 2026-10-17
 
 ### Added

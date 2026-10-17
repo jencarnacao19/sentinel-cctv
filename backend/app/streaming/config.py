@@ -35,6 +35,20 @@ SUB_STREAM_SUFFIX = "_sub"
 #: not offer talk-back, so there is nothing to lose by refusing it.
 SOURCE_SUFFIX = "#backchannel=0"
 
+#: Every go2rtc API path ``app.streaming`` uses (``client.py`` and the live
+#: WebSocket proxy). go2rtc 1.9.12+ registers nothing outside this list.
+GO2RTC_API_PATHS: tuple[str, ...] = (
+    "/api",
+    "/api/streams",
+    "/api/ws",
+    "/api/webrtc",
+    "/api/frame.jpeg",
+    "/api/stream.m3u8",
+    "/api/hls/playlist.m3u8",
+    "/api/hls/init.mp4",
+    "/api/hls/segment.m4s",
+)
+
 # G.711 is what Tapo cameras and many NVR channels expose. It is valid RTSP
 # audio and FFmpeg can record it, but MSE/fMP4 browsers require AAC. Keep the
 # original source intact, then offer one lazy, local AAC producer through the
@@ -108,7 +122,11 @@ def build_config(settings: Settings, cameras: Iterable[Camera]) -> dict[str, Any
         # to it through Sentinel's authenticated proxy instead.
         "api": {
             "listen": f"{settings.go2rtc_host}:{settings.go2rtc_api_port}",
-            "origin": "*",
+            # Only the endpoints Sentinel calls are registered at all, so the
+            # exit, restart, config and log endpoints do not exist even for a
+            # request that reaches loopback. No CORS header either: browsers
+            # never talk to go2rtc, only Sentinel's own server does.
+            "allow_paths": list(GO2RTC_API_PATHS),
         },
         "rtsp": {
             "listen": f"{settings.go2rtc_host}:{settings.go2rtc_rtsp_port}",

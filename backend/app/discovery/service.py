@@ -59,7 +59,7 @@ async def fetch_onvif_profiles(
     if not host:
         raise DiscoveryError("That address does not look like a valid URL.")
     try:
-        await netsafety.ensure_scannable_host(host)
+        await netsafety.ensure_onvif_host(host)
     except netsafety.UnscannableHostError as exc:
         raise DiscoveryError(str(exc)) from exc
 

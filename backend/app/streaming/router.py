@@ -35,6 +35,7 @@ from app.config import Settings, get_settings
 from app.database.models import Camera
 from app.database.session import get_session, get_session_factory
 from app.logging_config import get_logger
+from app.security.origin import websocket_origin_allowed
 from app.streaming.client import Go2RtcUnavailableError
 from app.streaming.config import stream_names
 from app.streaming.hls import HlsGrant, hls_sessions
@@ -54,6 +55,8 @@ MAX_MESSAGE_BYTES = 8 * 1024 * 1024
 
 #: An SDP offer is a couple of kilobytes at most.
 MAX_OFFER_BYTES = 64 * 1024
+
+CROSS_SITE_REFUSED = "Cross-site socket refused"
 
 # Accepted live sockets are tracked so privacy mode can close already-playing
 # feeds, not merely reject the next page load.
@@ -324,6 +327,9 @@ async def stream_websocket(
     single proxy covers every playback mode the browser might negotiate.
     """
     settings = get_settings()
+    if not websocket_origin_allowed(websocket, settings):
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason=CROSS_SITE_REFUSED)
+        return
 
     # Authentication happens before the socket is accepted, so an unauthorised
     # client is refused at the handshake and never receives a single frame.
@@ -366,6 +372,11 @@ async def viewer_stream_websocket(
     cannot be reused against camera, storage or settings endpoints.
     """
     settings = get_settings()
+    # The viewer cookie is SameSite=None for the Home Assistant iframe, so a
+    # browser would attach it to a socket opened by any other site.
+    if not websocket_origin_allowed(websocket, settings):
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason=CROSS_SITE_REFUSED)
+        return
     selected_subprotocol = matching_viewer_subprotocol(websocket, settings)
 
     async with get_session_factory()() as session:
