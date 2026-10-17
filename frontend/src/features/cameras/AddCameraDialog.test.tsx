@@ -80,6 +80,57 @@ describe('AddCameraDialog', () => {
     expect(screen.getByText('Records without re-encoding')).toBeInTheDocument()
   })
 
+  it('tests and saves a Tapo battery camera as a local event source', async () => {
+    const fetchMock = stubRoutes({
+      '/api/v1/cameras/tapo-battery/test': () =>
+        json({
+          model: 'TC82',
+          hardware_version: '1.0',
+          firmware_version: '1.2.3',
+          battery_percent: 84,
+          charging: true,
+          charging_source: 'solar',
+          read_at: '2026-08-27T12:00:00Z',
+        }),
+      '/api/v1/cameras': () => json({ id: 'tc82', name: 'Tool shed' }, 201),
+    })
+    const onOpenChange = vi.fn()
+    const user = userEvent.setup()
+    renderWithProviders(<AddCameraDialog open onOpenChange={onOpenChange} />)
+
+    await user.click(screen.getByRole('radio', { name: /Tapo battery/ }))
+    await user.selectOptions(screen.getByLabelText('Connection type'), 'hub')
+    await user.type(screen.getByLabelText('Name'), 'Tool shed')
+    await user.type(screen.getByLabelText('Camera or H200 local address'), '192.168.50.60')
+    await user.type(screen.getByLabelText(/Hub child ID/), 'child-82')
+    expect(screen.getByLabelText(/Tapo username/i)).toBeInTheDocument()
+    await user.type(screen.getByLabelText('Tapo account password'), 'local-secret')
+    expect(screen.getByRole('button', { name: 'Add camera' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: /test connection/i }))
+
+    expect(await screen.findByText('Local connection OK')).toBeInTheDocument()
+    expect(screen.getByText('84%')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Add camera' })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: 'Add camera' }))
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+
+    const createCall = fetchMock.mock.calls.find(([input]) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      return url.endsWith('/api/v1/cameras')
+    })
+    const body = createCall?.[1]?.body
+    expect(JSON.parse(typeof body === 'string' ? body : '{}')).toMatchObject({
+      name: 'Tool shed',
+      kind: 'tapo_battery',
+      host: '192.168.50.60',
+      tapo_child_id: 'child-82',
+      tapo_password: 'local-secret',
+      recording_mode: 'events',
+      motion_enabled: false,
+    })
+    expect(JSON.parse(typeof body === 'string' ? body : '{}')).not.toHaveProperty('username')
+  })
+
   it('warns when the codec would force re-encoding', async () => {
     stubRoutes({
       '/api/v1/cameras/test-stream': () =>
@@ -157,10 +208,68 @@ describe('AddCameraDialog', () => {
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
   })
 
-  it('offers RTSP cameras only, since battery cameras are on the dev build', () => {
+  it('displays discovered hub cameras in dropdown and auto-populates child ID and name', async () => {
+    stubRoutes({
+      '/api/v1/cameras/tapo-battery/test': () =>
+        json({
+          model: 'H200',
+          hardware_version: '1.0',
+          firmware_version: '1.2.3',
+          battery_percent: null,
+          charging: null,
+          charging_source: null,
+          read_at: '2026-08-27T12:00:00Z',
+          children: [
+            { child_id: 'CHILD_01', name: 'Backyard TC82', model: 'TC82' },
+            { child_id: 'CHILD_02', name: 'Driveway TC82', model: 'TC82' },
+          ],
+        }),
+    })
+    const user = userEvent.setup()
     renderWithProviders(<AddCameraDialog open onOpenChange={vi.fn()} />)
 
-    expect(screen.queryByRole('radio', { name: /Tapo battery/ })).not.toBeInTheDocument()
-    expect(screen.queryByText(/Tapo account password/)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('radio', { name: /Tapo battery/ }))
+    await user.selectOptions(screen.getByLabelText('Connection type'), 'hub')
+    await user.type(screen.getByLabelText('Camera or H200 local address'), '192.168.50.60')
+    await user.type(screen.getByLabelText('Tapo account password'), 'hub-password')
+    await user.click(screen.getByRole('button', { name: /test connection/i }))
+
+    expect(await screen.findByText('Local connection OK')).toBeInTheDocument()
+    expect(screen.getByText(/2 camera\(s\) detected/i)).toBeInTheDocument()
+
+    const select = await screen.findByLabelText('Discovered hub cameras')
+    expect(select).toBeInTheDocument()
+    await user.selectOptions(select, 'CHILD_01')
+
+    expect(screen.getByLabelText(/Hub child ID/)).toHaveValue('CHILD_01')
+    expect(screen.getByLabelText('Name')).toHaveValue('Backyard TC82')
+  })
+
+  it('surfaces actionable guidance on 422 authentication failure without leaking proxy error', async () => {
+    stubRoutes({
+      '/api/v1/cameras/tapo-battery/test': () =>
+        json(
+          {
+            detail:
+              'The Tapo battery camera or local hub rejected the credentials. Enable Third-Party Compatibility in the Tapo app, then use the password you use to sign in to the Tapo app, not the Camera Account or RTSP password.',
+          },
+          422,
+        ),
+    })
+    const user = userEvent.setup()
+    renderWithProviders(<AddCameraDialog open onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('radio', { name: /Tapo battery/ }))
+    expect(screen.getByLabelText('Connection type')).toHaveValue('standalone')
+    expect(screen.queryByLabelText(/Tapo username/i)).not.toBeInTheDocument()
+    await user.type(screen.getByLabelText('Camera or H200 local address'), '192.168.50.60')
+    await user.type(screen.getByLabelText('Tapo account password'), 'wrong-password')
+    await user.click(screen.getByRole('button', { name: /test connection/i }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('rejected the credentials')
+    expect(alert).toHaveTextContent('Third-Party Compatibility')
+    expect(alert).toHaveTextContent('not the Camera Account or RTSP password')
+    expect(alert).not.toHaveTextContent(/cloudflare/i)
   })
 })

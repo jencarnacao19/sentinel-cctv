@@ -49,6 +49,9 @@ services:
       # exact Home Assistant origin; never use a wildcard.
       SENTINEL_FRAME_ANCESTORS: ${SENTINEL_FRAME_ANCESTORS:-}
       SENTINEL_COOKIE_SECURE: ${SENTINEL_COOKIE_SECURE:-false}
+      # Experimental event-based battery cameras. No RTSP recorder is created;
+      # Direct Stream and clip downloads happen only on explicit LAN requests.
+      SENTINEL_ENABLE_TAPO_BATTERY_PROVIDER: ${SENTINEL_ENABLE_TAPO_BATTERY_PROVIDER:-false}
 
     # FFmpeg opens a handful of file descriptors per camera; the default soft
     # limit of 1024 is tight once you pass roughly twenty streams.

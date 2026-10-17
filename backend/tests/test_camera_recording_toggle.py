@@ -379,6 +379,26 @@ class TestBoundaries:
         assert response.status_code == 401
         assert get_manager().is_recording(camera["id"]), "an unauthorised call changes nothing"
 
+    async def test_a_battery_camera_has_no_continuous_recorder_to_toggle(
+        self, admin_client: AsyncClient, settings: Any, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(settings, "enable_tapo_battery_provider", True)
+        created = await admin_client.post(
+            "/api/v1/cameras",
+            json={
+                "name": "Patio",
+                "kind": "tapo_battery",
+                "host": "192.168.50.220",
+                "tapo_password": "local-secret",
+            },
+        )
+        assert created.status_code == 201, created.text
+        response = await admin_client.put(
+            f"/api/v1/cameras/{created.json()['id']}/recording",
+            json={"enabled": False, "confirm": True},
+        )
+        assert response.status_code == 409
+
     async def test_an_unknown_camera_is_a_not_found(self, admin_client: AsyncClient) -> None:
         response = await admin_client.put(
             "/api/v1/cameras/00000000-0000-0000-0000-000000000000/recording",

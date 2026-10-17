@@ -36,10 +36,10 @@ const UNKNOWN_VENDOR: TapoControlAvailability = {
 }
 
 const BATTERY_TAPO: TapoControlAvailability = {
-  supported: false,
+  supported: true,
   source: 'kind',
   detected_vendor: 'Tapo',
-  reason: 'Tapo battery cameras are not supported in this release.',
+  reason: 'This camera is registered as a Tapo battery device.',
   can_opt_in: false,
 }
 
@@ -124,7 +124,7 @@ export const unknownCamera = makeCamera({
   tapo_controls: UNKNOWN_VENDOR,
 })
 
-/** A TC82 the dev build added. Releases keep it but do not support it. */
+/** A TC82: no RTSP, no continuous recorder, event clips and Direct Stream. */
 export const batteryCamera = makeCamera({
   id: 'cam-battery',
   kind: 'tapo_battery',

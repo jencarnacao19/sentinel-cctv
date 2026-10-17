@@ -19,6 +19,8 @@ from httpx import ASGITransport, AsyncClient
 from app.auth.ratelimit import reset_all_limiters
 from app.cameras.ptz import set_manager as set_ptz_manager
 from app.cameras.tapo import set_manager as set_tapo_manager
+from app.cameras.tapo_battery import set_manager as set_tapo_battery_manager
+from app.cameras.tapo_timed import set_manager as set_timed_manager
 from app.config import Settings, get_settings, reset_settings_cache
 from app.database.session import dispose_engine
 from app.logging_config import configure_logging
@@ -93,6 +95,8 @@ async def app(settings: Settings) -> AsyncIterator[FastAPI]:
     set_export_manager(None)
     set_ptz_manager(None)
     set_tapo_manager(None)
+    set_tapo_battery_manager(None)
+    set_timed_manager(None)
     set_privacy_manager(None)
     set_reliability_monitor(None)
     set_cleanup_manager(None)
@@ -110,6 +114,8 @@ async def app(settings: Settings) -> AsyncIterator[FastAPI]:
     set_export_manager(None)
     set_ptz_manager(None)
     set_tapo_manager(None)
+    set_tapo_battery_manager(None)
+    set_timed_manager(None)
     set_privacy_manager(None)
     set_reliability_monitor(None)
     set_cleanup_manager(None)

@@ -13,6 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import AdminPrincipal, CurrentPrincipal, IntegrationReadPrincipal
+from app.cameras.tapo_timed import get_manager as get_timed_manager
 from app.config import Settings, get_settings
 from app.database.models import RecordingSegment, SegmentStatus
 from app.database.session import get_session
@@ -434,6 +435,12 @@ async def start_cleanup(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f'Type "{required}" to confirm this irreversible cleanup.',
         )
+    if selection.all_history and get_timed_manager().any_active():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Stop the active battery-camera recording before clearing all footage.",
+        )
+
     root = await get_storage_root(session, settings)
     storage = await asyncio.to_thread(check_storage, root)
     if not storage.available:

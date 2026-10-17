@@ -146,7 +146,9 @@ export function describeFailure(
       title: `${capitalise(target)} did not answer`,
       detail:
         error.message ||
-        'Sentinel reached the network but the camera did not reply. Check its power and network.',
+        'Sentinel reached the network but the camera did not reply. A battery camera is asleep ' +
+          'most of the time, so this is normal for one; a mains camera should be checked for ' +
+          'power and network.',
       tone: 'warning',
       transport: false,
     }

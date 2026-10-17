@@ -144,14 +144,14 @@ describe('answers that did not come from Sentinel', () => {
       jsonResponse(
         {
           detail:
-            'The camera rejected the username or password. Use the account created on the camera itself, not a cloud account.',
+            'The Tapo battery camera or local hub rejected the credentials. Enable Third-Party Compatibility in the Tapo app, then use the password you use to sign in to the Tapo app, not the Camera Account or RTSP password.',
         },
         422,
       ),
     )
-    const error = (await api.post('/cameras/1/test', {}).catch((e: unknown) => e)) as ApiError
-    expect(error.message).toContain('rejected the username or password')
-    expect(error.message).toContain('not a cloud account')
+    const error = (await api.post('/cameras/tapo-battery/test', {}).catch((e: unknown) => e)) as ApiError
+    expect(error.message).toContain('rejected the credentials')
+    expect(error.message).toContain('Third-Party Compatibility')
     expect(error.fromProxy).toBe(false)
     expect(error.isCameraFault).toBe(true)
   })
@@ -159,12 +159,12 @@ describe('answers that did not come from Sentinel', () => {
   it("treats Sentinel's 424 unreachable error as a camera fault with Sentinel's message", async () => {
     mockFetch(
       jsonResponse(
-        { detail: 'The camera did not respond.' },
+        { detail: 'The Tapo battery camera or local hub did not respond.' },
         424,
       ),
     )
-    const error = (await api.post('/cameras/1/test', {}).catch((e: unknown) => e)) as ApiError
-    expect(error.message).toBe('The camera did not respond.')
+    const error = (await api.post('/cameras/tapo-battery/test', {}).catch((e: unknown) => e)) as ApiError
+    expect(error.message).toBe('The Tapo battery camera or local hub did not respond.')
     expect(error.fromProxy).toBe(false)
     expect(error.isCameraFault).toBe(true)
   })

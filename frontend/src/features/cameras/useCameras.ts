@@ -36,6 +36,16 @@ export function useUpdateCamera() {
     onSuccess: async (camera) => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.cameras })
       queryClient.setQueryData(queryKeys.camera(camera.id), camera)
+      if (camera.kind === 'tapo_battery') {
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.cameraTapoBatteryStatus(camera.id),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.cameraTimedRecordingOptions(camera.id),
+          }),
+        ])
+      }
     },
   })
 }

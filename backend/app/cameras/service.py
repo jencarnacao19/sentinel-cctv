@@ -21,8 +21,10 @@ from app.cameras.schemas import (
     StreamTestResponse,
 )
 from app.cameras.vendor import TapoControlSource, classify_tapo_controls
+from app.config import get_settings
 from app.database.base import utcnow
-from app.database.models import Camera, CameraKind, CameraStatus
+from app.database.models import Camera, CameraKind, CameraStatus, RecordingMode
+from app.discovery import netsafety
 from app.events.bus import CAMERA_ADDED, CAMERA_OFFLINE, CAMERA_ONLINE, CAMERA_REMOVED, publish
 from app.logging_config import get_logger
 from app.security.crypto import encrypt_secret, try_decrypt_secret
@@ -40,12 +42,6 @@ class DuplicateCameraNameError(CameraError):
 
 class CameraNotFoundError(CameraError):
     pass
-
-
-BATTERY_UNSUPPORTED = (
-    "Tapo battery cameras are not supported in this release. They are being "
-    "developed on Sentinel's dev build."
-)
 
 
 class InvalidCameraError(CameraError):
@@ -145,30 +141,49 @@ async def create_camera(session: AsyncSession, payload: CameraCreate) -> Camera:
     password: str | None
     onvif_xaddr: str | None
     if payload.kind is CameraKind.TAPO_BATTERY:
-        raise InvalidCameraError(BATTERY_UNSUPPORTED)
-    if not payload.main_stream_url:
-        raise InvalidCameraError("An RTSP main stream URL is required.")
-    main_url, host, username, password = _split_credentials(
-        payload.main_stream_url, payload.username, payload.password
-    )
-
-    sub_url = None
-    if payload.sub_stream_url:
-        sub_url, _, sub_username, sub_password = _split_credentials(
-            payload.sub_stream_url, payload.username, payload.password
+        if not get_settings().enable_tapo_battery_provider:
+            raise InvalidCameraError("The Tapo battery-camera provider is disabled.")
+        if payload.host is None:  # defensive: CameraCreate already validates this
+            raise InvalidCameraError("A local Tapo host is required.")
+        try:
+            await netsafety.ensure_scannable_host(payload.host)
+        except netsafety.UnscannableHostError as exc:
+            raise InvalidCameraError(
+                "The Tapo battery camera or hub must use a private local address."
+            ) from exc
+        main_url = None
+        sub_url = None
+        host = payload.host
+        # Battery cameras default to "admin" for Third-Party Compatibility,
+        # or use the provided Tapo cloud account email / username.
+        username = payload.username or "admin"
+        password = None
+        onvif_xaddr = None
+    else:
+        if not payload.main_stream_url:
+            raise InvalidCameraError("An RTSP main stream URL is required.")
+        main_url, host, username, password = _split_credentials(
+            payload.main_stream_url, payload.username, payload.password
         )
-        # A substream URL usually carries the same credentials; only fall back to
-        # them if the main URL had none.
-        username = username or sub_username
-        password = password or sub_password
 
-    onvif_xaddr = _validate_onvif_host(payload.onvif_device_xaddr, host)
+        sub_url = None
+        if payload.sub_stream_url:
+            sub_url, _, sub_username, sub_password = _split_credentials(
+                payload.sub_stream_url, payload.username, payload.password
+            )
+            # A substream URL usually carries the same credentials; only fall back to
+            # them if the main URL had none.
+            username = username or sub_username
+            password = password or sub_password
+
+        onvif_xaddr = _validate_onvif_host(payload.onvif_device_xaddr, host)
 
     camera = Camera(
         name=payload.name.strip(),
         kind=payload.kind,
-        manufacturer=payload.manufacturer,
-        model=payload.model,
+        manufacturer=payload.manufacturer
+        or ("Tapo" if payload.kind is CameraKind.TAPO_BATTERY else None),
+        model=payload.model or ("TC82" if payload.kind is CameraKind.TAPO_BATTERY else None),
         nvr_group=payload.nvr_group,
         host=host,
         main_stream_url=main_url,
@@ -182,14 +197,24 @@ async def create_camera(session: AsyncSession, payload: CameraCreate) -> Camera:
         onvif_device_xaddr=onvif_xaddr,
         onvif_profile_token=payload.onvif_profile_token,
         enabled=payload.enabled,
-        recording_mode=payload.recording_mode,
+        recording_mode=(
+            RecordingMode.EVENTS
+            if payload.kind is CameraKind.TAPO_BATTERY
+            else payload.recording_mode
+        ),
         recording_profile=payload.recording_profile,
         recording_source_mode=payload.recording_source_mode,
         recording_segment_seconds=payload.recording_segment_seconds,
-        recording_enabled=payload.recording_enabled,
-        tapo_controls_enabled=payload.tapo_controls_enabled,
+        recording_enabled=(
+            True if payload.kind is CameraKind.TAPO_BATTERY else payload.recording_enabled
+        ),
+        tapo_controls_enabled=(
+            None if payload.kind is CameraKind.TAPO_BATTERY else payload.tapo_controls_enabled
+        ),
         retention_days=payload.retention_days,
-        motion_enabled=payload.motion_enabled,
+        motion_enabled=(
+            False if payload.kind is CameraKind.TAPO_BATTERY else payload.motion_enabled
+        ),
         motion_sensitivity=payload.motion_sensitivity,
         tapo_patrol_mode=payload.tapo_patrol_mode,
         status=CameraStatus.OFFLINE if payload.enabled else CameraStatus.DISABLED,
@@ -220,13 +245,47 @@ async def update_camera(session: AsyncSession, camera: Camera, payload: CameraUp
     previous_host = camera.host
 
     if camera.kind is CameraKind.TAPO_BATTERY:
-        # A camera added with the dev build stays in the database untouched,
-        # so switching back to that build finds it as it was.
-        raise InvalidCameraError(BATTERY_UNSUPPORTED)
-    if "host" in data or "tapo_child_id" in data:
-        raise InvalidCameraError(
-            "An RTSP camera's host comes from its stream URL and cannot be set separately."
-        )
+        if not get_settings().enable_tapo_battery_provider:
+            raise InvalidCameraError("The Tapo battery-camera provider is disabled.")
+        incompatible = payload.model_fields_set & {
+            "main_stream_url",
+            "sub_stream_url",
+            "password",
+            "onvif_device_xaddr",
+            "onvif_profile_token",
+            "tapo_patrol_mode",
+        }
+        if incompatible:
+            raise InvalidCameraError(
+                "Tapo battery cameras do not accept RTSP, ONVIF or patrol settings."
+            )
+        if "host" in data:
+            host = data.get("host")
+            if not host:
+                raise InvalidCameraError("A Tapo battery camera must keep a local host.")
+            try:
+                await netsafety.ensure_scannable_host(host)
+            except netsafety.UnscannableHostError as exc:
+                raise InvalidCameraError(
+                    "The Tapo battery camera or hub must use a private local address."
+                ) from exc
+        data["recording_mode"] = RecordingMode.EVENTS
+        data["motion_enabled"] = False
+        if "tapo_child_id" in data:
+            data["tapo_child_id"] = data.get("tapo_child_id") or None
+        if "tapo_controls_enabled" in payload.model_fields_set:
+            # There is no meaningful "off" here: the entire transport is the
+            # vendor's, so the setting would only make the camera unusable.
+            raise InvalidCameraError(
+                "Tapo battery cameras always use Tapo controls; the setting does not apply."
+            )
+        if "recording_enabled" in payload.model_fields_set:
+            raise InvalidCameraError(
+                "Tapo battery cameras record on request, not continuously; "
+                "use the timed recording controls instead."
+            )
+    elif "host" in data or "tapo_child_id" in data:
+        raise InvalidCameraError("host and tapo_child_id are only for Tapo battery cameras.")
 
     if "host" in data:
         camera.host = data.pop("host")
@@ -306,6 +365,15 @@ async def update_camera(session: AsyncSession, camera: Camera, payload: CameraUp
     if camera.tapo_patrol_mode and (not camera.username or not camera.encrypted_password):
         raise InvalidCameraError(
             "Tapo patrol restoration requires the camera username and stored password."
+        )
+    if (
+        camera.kind is CameraKind.TAPO_BATTERY
+        and camera.enabled
+        and not camera.encrypted_tapo_password
+    ):
+        raise InvalidCameraError(
+            "An enabled Tapo battery camera requires its encrypted Tapo password. "
+            "Disable it before removing the credential."
         )
     if camera.kind is CameraKind.RTSP and camera.tapo_controls_enabled is True:
         classification = classify_tapo_controls(camera)
