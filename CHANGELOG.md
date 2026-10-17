@@ -17,6 +17,22 @@ the dev build.
 
 ### Added
 
+- **Setup in the browser.** After the administrator account, Sentinel walks a
+  new installation through where recordings go and for how long (warning when
+  that is the small system disk), its cameras, accounts for the family and Home
+  Assistant, then opens the camera wall. Importing a configuration file from
+  another Sentinel and the Home Assistant step are optional. Installations from
+  before 2.0 are not sent through it.
+- **Viewer accounts.** The administrator creates accounts, during setup or under
+  **Settings → Viewer accounts**, for people who only watch: they sign in at
+  Sentinel's address to see the cameras, recordings and saved clips, and cannot
+  change anything. The camera wall asks them to sign in, and offers a sign-out.
+- **The installer asks which disk holds the recordings.** It lists the disks
+  the Proxmox host has mounted, with their free space, marks the one Proxmox
+  runs from, and creates a `sentinel-recordings` folder on the one chosen.
+  Nothing is formatted or mounted.
+- **The address to open is easy to find.** The server log says which address
+  to open, and the Proxmox container's console shows it at the login prompt.
 - **Named motion zones.** On **Motion zones**, each area is now a detection
   zone or an ignored area. A detection zone has a name and can have its own
   sensitivity, and once a camera has one, only motion inside its detection zones
@@ -40,6 +56,8 @@ the dev build.
 
 ### Changed
 
+- `GET /api/v1/auth/status` adds `setup_completed`, and signing in returns
+  `is_admin`, so the interface can send a viewer account to the camera wall.
 - **The motion-zones API has a new format (breaking).**
   `/api/v1/cameras/{id}/motion-zones` now exchanges `{"zones": [...]}` with zone
   objects (`id`, `name`, `kind`, `enabled`, `sensitivity`, `points`) instead of
@@ -60,6 +78,9 @@ the dev build.
 
 ### Security
 
+- **Viewer accounts cannot reach administration.** To every route outside the
+  viewer a viewer account is signed out; a test sends its session to every
+  route in the API and requires the answer an anonymous client gets.
 - **Live-stream and event sockets refuse other websites.** A browser's
   `Origin` must now match the host the socket was opened on. Before, a page on
   another site could open the viewer's live-stream socket with a household

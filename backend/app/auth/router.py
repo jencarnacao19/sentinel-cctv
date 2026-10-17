@@ -22,10 +22,12 @@ from app.auth.schemas import (
     ChangePasswordRequest,
     ClearLoginBlocksRequest,
     CreateAdminRequest,
+    CreateViewerAccountRequest,
     LoginBlockResponse,
     LoginRequest,
     LoginSecurityResponse,
     LoginSecurityUpdate,
+    SetPasswordRequest,
     TokenResponse,
     UserResponse,
 )
@@ -34,6 +36,7 @@ from app.config import Settings, get_settings
 from app.database.base import utcnow
 from app.database.session import get_session
 from app.logging_config import get_logger
+from app.system import settings_store
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 logger = get_logger("API")
@@ -56,9 +59,14 @@ def _set_session_cookie(
     )
 
 
-@router.get("/status", summary="Whether an administrator account exists yet")
+@router.get("/status", summary="Whether an administrator exists and setup is finished")
 async def auth_status(session: SessionDep) -> dict[str, bool]:
-    return {"initialised": await service.has_any_user(session)}
+    return {
+        "initialised": await service.has_any_user(session),
+        # Lets the interface send an administrator back into the setup steps
+        # they have not finished; it reveals nothing else about the server.
+        "setup_completed": await settings_store.is_setup_completed(session),
+    }
 
 
 @router.post(
@@ -171,7 +179,7 @@ async def login(
     await session.commit()
     _set_session_cookie(response, token, settings, settings.access_token_ttl_minutes * 60)
     logger.info("Signed in", extra={"username": user.username})
-    return TokenResponse(access_token=token, expires_at=expires_at)
+    return TokenResponse(access_token=token, expires_at=expires_at, is_admin=user.is_admin)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, summary="Sign out")
@@ -324,6 +332,75 @@ async def change_password(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=exc.problems
         ) from exc
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# --- Viewer accounts ---------------------------------------------------
+
+
+@router.get("/users", response_model=list[UserResponse], summary="List accounts")
+async def list_users(_: AdminPrincipal, session: SessionDep) -> list[UserResponse]:
+    return [UserResponse.model_validate(user) for user in await service.list_users(session)]
+
+
+@router.post(
+    "/users",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Add a viewer account, which can watch and change nothing",
+)
+async def create_viewer_account(
+    payload: CreateViewerAccountRequest, _: AdminPrincipal, session: SessionDep
+) -> UserResponse:
+    try:
+        user = await service.create_viewer_account(session, payload.username, payload.password)
+    except service.DuplicateUsernameError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except service.WeakPasswordError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=exc.problems
+        ) from exc
+    await session.commit()
+    return UserResponse.model_validate(user)
+
+
+def _account_error(exc: service.AuthError) -> HTTPException:
+    if isinstance(exc, service.AccountNotFoundError):
+        return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+
+
+@router.put(
+    "/users/{user_id}/password",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Set a viewer account's password",
+)
+async def set_viewer_password(
+    user_id: str, payload: SetPasswordRequest, _: AdminPrincipal, session: SessionDep
+) -> Response:
+    try:
+        await service.set_viewer_password(session, user_id, payload.password)
+    except (service.AccountNotFoundError, service.AdministratorAccountError) as exc:
+        raise _account_error(exc) from exc
+    except service.WeakPasswordError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=exc.problems
+        ) from exc
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete(
+    "/users/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remove a viewer account",
+)
+async def delete_viewer_account(user_id: str, _: AdminPrincipal, session: SessionDep) -> Response:
+    try:
+        await service.delete_viewer_account(session, user_id)
+    except (service.AccountNotFoundError, service.AdministratorAccountError) as exc:
+        raise _account_error(exc) from exc
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

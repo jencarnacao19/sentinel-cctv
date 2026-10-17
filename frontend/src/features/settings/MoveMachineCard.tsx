@@ -8,49 +8,25 @@
  */
 
 import { useMutation } from '@tanstack/react-query'
-import { Download, Upload } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { Download } from 'lucide-react'
+import { useState } from 'react'
 
-import { ApiError, API_BASE, NetworkError } from '@/api/client'
+import { API_BASE, NetworkError } from '@/api/client'
 import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { CheckboxField } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { ImportConfigForm } from '@/features/settings/ImportConfigForm'
+import { errorText, failure } from '@/features/settings/transfer'
 
 const MIN_PASSPHRASE_LENGTH = 8
 
-export interface ImportSummary {
-  cameras_added: string[]
-  cameras_skipped: { name: string; reason: string }[]
-  settings_applied: string[]
-  settings_skipped: { name: string; reason: string }[]
-  warnings: string[]
-  passwords_restored: boolean
-}
-
-function errorText(error: unknown, fallback: string): string | null {
-  if (!error) return null
-  if (error instanceof NetworkError) return 'Could not reach the Sentinel server.'
-  if (error instanceof ApiError) return error.message
-  return fallback
-}
-
-async function failure(response: Response, fallback: string): Promise<ApiError> {
-  const payload: unknown = await response.json().catch(() => null)
-  const detail =
-    payload && typeof payload === 'object' && 'detail' in payload ? String(payload.detail) : fallback
-  return new ApiError(response.status, detail)
-}
-
 export function MoveMachineCard() {
-  const fileInput = useRef<HTMLInputElement>(null)
   const [includePasswords, setIncludePasswords] = useState(false)
   const [passphrase, setPassphrase] = useState('')
   const [confirmation, setConfirmation] = useState('')
-  const [importPassphrase, setImportPassphrase] = useState('')
-  const [summary, setSummary] = useState<ImportSummary | null>(null)
 
   const passphraseProblem = !includePasswords
     ? null
@@ -85,30 +61,6 @@ export function MoveMachineCard() {
       link.click()
       link.remove()
       URL.revokeObjectURL(url)
-    },
-  })
-
-  const importConfig = useMutation({
-    mutationFn: async (file: File) => {
-      const form = new FormData()
-      form.append('file', file)
-      if (importPassphrase) form.append('passphrase', importPassphrase)
-      let response: Response
-      try {
-        response = await fetch(`${API_BASE}/system/config/import`, {
-          method: 'POST',
-          credentials: 'same-origin',
-          body: form,
-        })
-      } catch {
-        throw new NetworkError()
-      }
-      if (!response.ok) throw await failure(response, 'Could not import that file.')
-      return (await response.json()) as ImportSummary
-    },
-    onSuccess: (result) => {
-      setSummary(result)
-      setImportPassphrase('')
     },
   })
 
@@ -179,75 +131,9 @@ export function MoveMachineCard() {
           <h3 id="move-import-heading" className="text-sm font-medium">
             Import
           </h3>
-          <div className="space-y-1">
-            <Label htmlFor="move-import-passphrase">Passphrase (only if the file has passwords)</Label>
-            <Input
-              id="move-import-passphrase"
-              type="password"
-              autoComplete="off"
-              value={importPassphrase}
-              onChange={(event) => setImportPassphrase(event.target.value)}
-            />
-          </div>
-          <Button
-            variant="secondary"
-            className="w-full sm:w-auto"
-            onClick={() => fileInput.current?.click()}
-            loading={importConfig.isPending}
-          >
-            <Upload aria-hidden="true" />
-            Import from file
-          </Button>
-          <input
-            ref={fileInput}
-            type="file"
-            accept=".yaml,.yml,application/yaml,text/yaml"
-            className="sr-only"
-            aria-label="Configuration file to import"
-            onChange={(event) => {
-              const file = event.target.files?.[0]
-              if (file) importConfig.mutate(file)
-              event.target.value = ''
-            }}
-          />
-          {errorText(importConfig.error, 'Could not import that file.') ? (
-            <Alert variant="danger">
-              {errorText(importConfig.error, 'Could not import that file.')}
-            </Alert>
-          ) : null}
-          {summary ? <ImportResult summary={summary} /> : null}
+          <ImportConfigForm />
         </section>
       </CardContent>
     </Card>
-  )
-}
-
-function ImportResult({ summary }: { summary: ImportSummary }) {
-  const added = summary.cameras_added.length
-  return (
-    <Alert
-      variant={summary.cameras_skipped.length || summary.settings_skipped.length ? 'warning' : 'success'}
-      title={`${added} camera${added === 1 ? '' : 's'} added`}
-    >
-      <ul className="mt-1 list-disc space-y-1 pl-5">
-        {summary.cameras_added.length ? <li>Added: {summary.cameras_added.join(', ')}.</li> : null}
-        {summary.cameras_skipped.map((entry) => (
-          <li key={`camera-${entry.name}`}>
-            Not added, {entry.name}: {entry.reason}
-          </li>
-        ))}
-        {summary.settings_skipped.map((entry) => (
-          <li key={`setting-${entry.name}`}>
-            Setting {entry.name} not applied: {entry.reason}
-          </li>
-        ))}
-        {summary.warnings.map((warning) => (
-          <li key={warning}>{warning}</li>
-        ))}
-        {added > 0 && !summary.passwords_restored ? (
-          <li>The file had no passwords: enter each new camera&apos;s password on the Cameras page.</li>
-        ) : null}
-      </ul>
-    </Alert>
   )
 }

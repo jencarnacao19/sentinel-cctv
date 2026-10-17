@@ -37,6 +37,7 @@ describe('integration token permissions', () => {
           created_at: '2026-09-01T00:00:00Z', last_used_at: null, expires_at: null, revoked_at: null,
         }]))
       }
+      if (url.endsWith('/auth/users')) return Promise.resolve(json([]))
       if (url.endsWith('/auth/login-blocks')) return Promise.resolve(json([]))
       if (url.endsWith('/auth/login-security')) return Promise.resolve(json({
         enabled: false, failure_threshold: 1, block_duration_seconds: null,
@@ -73,6 +74,7 @@ describe('public login protection settings', () => {
         requests.push({ url, method, body })
 
         if (url.endsWith('/auth/tokens')) return json([])
+        if (url.endsWith('/auth/users')) return json([])
         if (url.endsWith('/auth/login-security') && method === 'PATCH') {
           return json({
             ...body,

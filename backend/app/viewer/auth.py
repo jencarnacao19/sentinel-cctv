@@ -1,8 +1,9 @@
 """Authorisation for the deliberately small read-only viewer surface.
 
-Viewer access is not a second kind of user.  It grants exactly the endpoints
-under ``/viewer`` plus the viewer WebSocket and never satisfies Sentinel's
-normal ``CurrentPrincipal`` or ``AdminPrincipal`` dependencies.
+Viewer access grants exactly the endpoints under ``/viewer`` plus the viewer
+WebSocket and never satisfies Sentinel's normal ``CurrentPrincipal`` or
+``AdminPrincipal`` dependencies. A viewer account is a signed-in person whose
+whole access is this surface: the rest of the API treats it as signed out.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from fastapi import Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import HTTPConnection
 
-from app.auth.deps import get_optional_principal
+from app.auth.deps import get_session_user
 from app.config import Settings, get_settings
 from app.database.session import get_session
 from app.viewer.cloudflare import valid_cloudflare_assertion
@@ -41,7 +42,7 @@ _VIEWER_DENIED = HTTPException(
 class ViewerAccess:
     """The narrow viewer grant and the mechanism that authorised it."""
 
-    kind: str  # "administrator" | "cloudflare_access" | "viewer_key"
+    kind: str  # "administrator" | "viewer_account" | "cloudflare_access" | "viewer_key"
 
 
 def _hostname(connection: HTTPConnection) -> str:
@@ -136,11 +137,14 @@ async def authorise_viewer(
     supplied_key: str | None = None,
 ) -> ViewerAccess:
     """Authorise a viewer request without granting application privileges."""
-    principal = await get_optional_principal(connection, session, settings)
-    # Machine tokens use the scoped camera API. Treating them as operators
-    # here would bypass those scopes through viewer PTZ and permanent exports.
-    if principal is not None and principal.kind == "user":
-        return ViewerAccess(kind="administrator")
+    # Machine tokens are never accounts here: they use the scoped camera API,
+    # and treating them as operators would bypass those scopes through viewer
+    # PTZ and permanent exports.
+    account = await get_session_user(connection, session, settings)
+    if account is not None:
+        # Accounts are local people signed in with a password, so they do not
+        # depend on the remote viewer being enabled.
+        return ViewerAccess(kind="administrator" if account.is_admin else "viewer_account")
 
     if not settings.viewer_enabled:
         raise _VIEWER_DENIED

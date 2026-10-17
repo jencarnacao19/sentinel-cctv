@@ -55,6 +55,12 @@ export const authApi = {
       ...(expiresInDays ? { expires_in_days: expiresInDays } : {}),
     }),
   revokeToken: (id: string) => api.delete<void>(`/auth/tokens/${id}`),
+  listUsers: () => api.get<User[]>('/auth/users'),
+  createViewerAccount: (username: string, password: string) =>
+    api.post<User>('/auth/users', { username, password }),
+  setViewerPassword: (id: string, password: string) =>
+    api.put<void>(`/auth/users/${encodeURIComponent(id)}/password`, { password }),
+  removeViewerAccount: (id: string) => api.delete<void>(`/auth/users/${encodeURIComponent(id)}`),
   loginSecurity: () => api.get<LoginSecuritySettings>('/auth/login-security'),
   updateLoginSecurity: (payload: {
     enabled: boolean
@@ -69,6 +75,7 @@ export const authApi = {
 
 export const systemApi = {
   info: () => api.get<SystemInfo>('/system'),
+  completeSetup: () => api.post<{ setup_completed: boolean }>('/system/setup/complete'),
   health: () => api.get<HealthResponse>('/system/health'),
   privacy: () => api.get<PrivacyStatus>('/system/privacy'),
   setPrivacy: (enabled: boolean, reason?: PrivacyReason) =>
@@ -215,6 +222,7 @@ export const queryKeys = {
   authStatus: ['auth', 'status'] as const,
   me: ['auth', 'me'] as const,
   tokens: ['auth', 'tokens'] as const,
+  users: ['auth', 'users'] as const,
   loginSecurity: ['auth', 'login-security'] as const,
   loginBlocks: ['auth', 'login-blocks'] as const,
   systemInfo: ['system', 'info'] as const,

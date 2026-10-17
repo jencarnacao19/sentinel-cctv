@@ -3,6 +3,38 @@
 How the main features work once Sentinel is installed. For installation, see
 the [README](../README.md#quick-start).
 
+## First-run setup
+
+The first time its address is opened, Sentinel asks for the administrator
+account and then walks through the rest, one step at a time:
+
+1. **Start from a file** (optional): import the configuration file from
+   another Sentinel, see [Moving Sentinel to another machine](#moving-sentinel-to-another-machine).
+2. **Recordings**: where the footage goes, how much room there is, and how
+   many days to keep. If recordings would land on the small system disk, the
+   step says so.
+3. **Cameras**: found on the network over ONVIF, or added by RTSP address. At
+   least one is needed to continue.
+4. **Family**: [viewer accounts](#viewer-accounts) for the people who watch.
+5. **Home Assistant** (optional): the repository to add to HACS, this server's
+   address, and a token created on the spot.
+
+The address then opens the camera wall. Until the setup is finished, every
+administration page leads back to it; every step can also be changed later
+from the interface.
+
+## Viewer accounts
+
+**Settings → Viewer accounts** (or the setup's family step) creates accounts
+for the people who only watch. They sign in at Sentinel's address and see the
+live cameras, recordings and saved clips. They cannot change anything, and
+they never reach the administration pages.
+
+An account can be given a new password or removed at any time. Removing one
+stops it on every device at once; a new password does not end sessions that
+are already open, so to cut off a lost phone, remove the account and add it
+again.
+
 ## ONVIF PTZ controls
 
 Open **Cameras → Detect PTZ** as an administrator. Sentinel validates the

@@ -3,6 +3,7 @@ import { Check, Copy, Download, KeyRound, ShieldCheck, Trash2, Unlock, Upload } 
 import { useEffect, useRef, useState } from 'react'
 
 import { ApiError, API_BASE, NetworkError } from '@/api/client'
+import { AccountsManager } from '@/features/accounts/AccountsManager'
 import { SoundPolicyCard } from '@/features/appearance/SoundPolicyCard'
 import { MoveMachineCard } from '@/features/settings/MoveMachineCard'
 import { authApi, queryKeys } from '@/api/endpoints'
@@ -74,6 +75,23 @@ function NewTokenPanel({ token, onDismiss }: { token: CreatedApiToken; onDismiss
         </Button>
       </div>
     </Alert>
+  )
+}
+
+function ViewerAccountsCard() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Viewer accounts</CardTitle>
+        <CardDescription>
+          For the people who watch: they sign in at this server&apos;s address to see the cameras,
+          recordings and saved clips, and cannot change anything.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <AccountsManager />
+      </CardContent>
+    </Card>
   )
 }
 
@@ -674,6 +692,7 @@ export function SettingsPage() {
         description="Access, backup and troubleshooting for this server."
       />
 
+      <ViewerAccountsCard />
       <ApiTokensCard />
       <SoundPolicyCard />
       <LoginSecurityCard />

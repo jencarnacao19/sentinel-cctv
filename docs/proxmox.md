@@ -34,6 +34,11 @@ less install-proxmox.sh
 bash install-proxmox.sh
 ```
 
+When it finishes it prints Sentinel's address, for example
+`http://192.168.50.60:8090`. The same address is shown on the container's
+console in the Proxmox web interface. Open it to set Sentinel up: the
+administrator account, recordings, cameras, family accounts and Home Assistant.
+
 ## What it will not do
 
 The script runs as root on a machine that is probably holding other people's
@@ -93,19 +98,29 @@ Every flag also has a `SENTINEL_INSTALL_*` environment variable (`_CTID`,
 
 This is the decision that matters, and the one most likely to be got wrong.
 
-Without `--recordings-path`, recordings land on the container's own 16 GB root
-disk, which fills in hours. That default is deliberate — guessing at which of
-your disks should hold video would be exactly the kind of assumption this script
-avoids — but it is not where you want to leave it.
-
 ### At install time
+
+The installer lists, numbered, the disks this host has mounted: Proxmox
+directory storages (local folders and NFS, SMB and CephFS shares), disks
+mounted under `/mnt`, `/media` or `/srv`, and ZFS datasets with a mountpoint of
+their own. Each shows its free space; the disk Proxmox runs from is listed last
+and marked, because continuous recording fills it within days. The roomiest
+other disk is the default. Recordings go into a new `sentinel-recordings`
+folder on the disk you pick, created with the ownership Sentinel needs inside
+the container.
+
+Nothing is formatted or mounted: a disk that is not mounted on the host does
+not appear. Mount it first (or add it as a Proxmox directory storage), then run
+the installer.
+
+To choose without the menu, or for a folder the menu does not list:
 
 ```bash
 bash install-proxmox.sh --recordings-path /tank/cctv
 ```
 
-The directory is created if missing, and given the ownership Sentinel needs
-inside the container.
+With `--yes` and no `--recordings-path`, recordings stay on the container's own
+16 GB root disk, as before.
 
 ### Afterwards
 
@@ -219,7 +234,8 @@ Sentinel's own failure modes; this document only covers the container around it.
 ## What has and has not been tested
 
 The installer's pure logic — argument parsing, validation, version comparison,
-uid mapping, memory arithmetic, the config-directory scans — is covered by
+uid mapping, memory arithmetic, the config-directory scans, and the recordings
+disk menu against stand-in disks — is covered by
 `tools/test-install-proxmox.sh`, which runs anywhere:
 
 ```bash

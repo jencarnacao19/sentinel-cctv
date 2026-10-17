@@ -21,6 +21,10 @@ sctv_...` header). Permissions are enforced in `backend/app/auth/deps.py`:
   recording/PTZ/privacy and supported local Tapo actions. It cannot change
   credentials, security/retention configuration, delete footage or manage tokens.
 - **Administrator** (`AdminPrincipal`) — a signed-in human administrator only.
+- **Viewer accounts** — people who only watch. They sign in like an
+  administrator but never become a principal: every route outside the viewer
+  treats them as signed out (`401`). They reach the viewer surface, `/auth/me`,
+  `/auth/change-password` and their own appearance preferences.
   Migration 0018 maps existing tokens to `camera_control` for HA compatibility;
   they no longer have administrator privileges.
 
@@ -38,7 +42,9 @@ required permission gets `403`. For HA switches/buttons choose `camera_control`;
 for a monitoring-only integration choose `read_only`.
 
 The viewer is not a principal and cannot satisfy either dependency. It uses a
-separate, restricted `CurrentViewer` guard described below.
+separate, restricted `CurrentViewer` guard described below, which accepts an
+administrator session, a viewer account session, the Home Assistant viewer key
+or a verified Cloudflare Access assertion.
 
 ## Endpoints
 
@@ -48,6 +54,7 @@ separate, restricted `CurrentViewer` guard described below.
 | --- | --- | --- | --- |
 | GET | `/system` | any | Name, version, uptime, setup flag, timezone, caller identity. |
 | GET | `/system/health` | none | Used by Docker's own healthcheck; returns `503` when unhealthy. |
+| POST | `/system/setup/complete` | admin | Marks the first-run setup finished. Until then the interface sends the administrator to the setup steps. |
 | GET | `/system/privacy` | any | Persistent global camera pause, selected predefined reason and safe viewer message. |
 | PUT | `/system/privacy` | admin / camera_control | Enable with `{"enabled":true,"reason":"guests"}` or resume with `{"enabled":false}`. Enabling stops live streams, recording and motion before returning. |
 | GET | `/system/diagnostics` | any | Host/process metrics, per-subsystem status, tooling detection. |
@@ -62,17 +69,21 @@ separate, restricted `CurrentViewer` guard described below.
 
 | Method | Path | Auth | Notes |
 | --- | --- | --- | --- |
-| GET | `/auth/status` | none | `{"initialised": bool}` — whether an administrator exists yet. |
-| POST | `/auth/setup` | none | Create the first (and, currently, only kind of) administrator account. Rate limited. |
-| POST | `/auth/login` | none | Sets the session cookie; also returns the token in the body. Rate limited (5/minute/client). When public login protection is enabled, a verified Cloudflare visitor address can also be persistently blocked after the configured number of failures. |
+| GET | `/auth/status` | none | `{"initialised": bool, "setup_completed": bool}` — whether an administrator exists yet, and whether the setup steps were finished. |
+| POST | `/auth/setup` | none | Create the administrator account. Refused once any account exists. Rate limited. |
+| POST | `/auth/login` | none | Sets the session cookie; also returns the token in the body, with `is_admin` (false for a viewer account). Rate limited (5/minute/client). When public login protection is enabled, a verified Cloudflare visitor address can also be persistently blocked after the configured number of failures. |
 | GET/PATCH | `/auth/login-security` | admin | Reads or changes public-login blocking, failure threshold and permanent/timed duration. Enabling fails unless the public hostname and exact trusted proxy network are configured. |
 | GET | `/auth/login-blocks` | admin | Lists active public-login blocks without storing attempted passwords or successful-login history. |
 | DELETE | `/auth/login-blocks/{address}` | admin | Removes one block. IPv6 addresses are URL-encoded by clients. |
 | POST | `/auth/login-blocks/clear` | admin | Clears every block and pending failure after explicit confirmation. |
 | POST | `/auth/logout` | none | Clears the session cookie. Takes no principal — anyone holding the cookie can clear it. |
-| GET | `/auth/me` | user session only | The signed-in user's own record; rejects an API token with `403`. |
+| GET | `/auth/me` | user session only | The signed-in account's own record, viewer accounts included; rejects an API token with `403`. |
 | GET | `/auth/whoami` | any | Identifies the caller, session or token, generically. |
-| POST | `/auth/change-password` | user session only | Requires the current password. |
+| POST | `/auth/change-password` | user session only | Requires the current password. Viewer accounts may change their own. |
+| GET | `/auth/users` | admin | Every account: administrator first, then viewer accounts. |
+| POST | `/auth/users` | admin | Body `{"username", "password"}`. Adds a viewer account; a name already taken, in any letter case, is `409`. |
+| PUT | `/auth/users/{id}/password` | admin | Body `{"password"}`. Sets a viewer account's password. Sessions already open stay open. |
+| DELETE | `/auth/users/{id}` | admin | Removes a viewer account, ending its sessions everywhere. The administrator is refused with `409` on both routes. |
 | GET | `/auth/tokens` | admin | List API tokens (hashes only; never the plaintext again). |
 | POST | `/auth/tokens` | admin | Create a token; the plaintext is in the response exactly once. Rate limited. |
 | DELETE | `/auth/tokens/{id}` | admin | Revoke a token immediately. |
@@ -309,7 +320,7 @@ address, and the TP-Link cloud password is never transmitted.
 
 | Method | Path | Auth | Notes |
 | --- | --- | --- | --- |
-| GET | `/storage` | admin / integration | Private diagnostics: exact path; recordings/saved clips/snapshots/database/other; protected and damaged footage; recording rate, projections and per-camera usage. |
+| GET | `/storage` | admin / integration | Private diagnostics: exact path; recordings/saved clips/snapshots/database/other; protected and damaged footage; recording rate, projections and per-camera usage. `shares_system_disk` is true when recordings sit on the same filesystem as Sentinel's own data, normally the small system disk. |
 | GET | `/storage/settings` | admin / integration | Current retention policy. |
 | PATCH | `/storage/settings` | human admin | `path`, `retention_days`, `max_bytes`, `min_free_bytes` — see `docs/configuration.md` for which of these the interface actually exposes today. |
 | POST | `/storage/sweep` | admin | Run retention immediately instead of waiting for the ten-minute tick. Reclaims recording segments **and** motion evidence — the snapshot and thumbnail kept for each motion event — on the same policy. `events_deleted` and `event_bytes_freed` are reported separately from `deleted`/`freed_bytes`, so a sweep that only cleared thumbnails cannot read as one that reclaimed footage. |

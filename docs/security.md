@@ -141,6 +141,18 @@ satisfies a principal or administrator dependency, and live WebSocket URLs
 contain no key. Cloudflare assertions are independently verified for signature,
 issuer, audience and expiry. Keep the origin private even with this validation.
 
+**Viewer accounts.** Password accounts for people who only watch, created by
+the administrator. They sign in through the same endpoint and get the same
+kind of session as the administrator, but resolving a session into a
+principal (`backend/app/auth/deps.py`) returns nothing for them: to every route
+outside the viewer they are simply signed out, so no endpoint written before
+these accounts existed can serve one. The viewer guard accepts them, and the
+only other routes open to them are their own profile, password and appearance.
+`tests/test_viewer_accounts.py` sends a viewer account's session to every
+route in the API and requires the same answer an anonymous client gets.
+Sessions look the account up on every request, so removing an account ends it
+everywhere at once; a new password does not end sessions already open.
+
 **Global privacy mode.** A human administrator or a camera-control integration may change this
 persistent state; viewers can read only its safe public reason. Enabling it
 first commits a fail-safe state, then closes accepted live sockets, stops the
@@ -266,9 +278,10 @@ wrong archive is recoverable.
 
 Said plainly, so nothing here is a surprise later:
 
-- **No general human role-based access control.** Machine integration scopes
-  are available, but human accounts are still administrators and the footage
-  operator remains a distinct shared grant, not a per-camera household role.
+- **Two human roles, not per-camera permissions.** There is one administrator
+  and any number of viewer accounts; a viewer account sees every camera.
+  Machine integration scopes are separate, and the footage operator remains a
+  distinct shared grant.
 - **Access SSO requires explicit configuration.** Sentinel verifies RS256,
   issuer, application audience and expiry using bounded, cached public keys
   from the configured Access team. Unconfigured, forged, expired or wrong-app

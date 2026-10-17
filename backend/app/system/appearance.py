@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, ConfigDict, StrictBool
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.deps import AdminPrincipal, CurrentUser, OptionalPrincipal
+from app.auth.deps import AdminPrincipal, CurrentUser, SessionUser
 from app.database.session import get_session
 from app.system import settings_store
 from app.viewer.auth import CurrentViewer
@@ -42,11 +42,11 @@ class AppearanceResponse(SoundPolicy):
 
 @router.get("/viewer/appearance", response_model=AppearanceResponse)
 async def read_appearance(
-    _: CurrentViewer, principal: OptionalPrincipal, session: Session, response: Response
+    _: CurrentViewer, account: SessionUser, session: Session, response: Response
 ) -> AppearanceResponse:
     response.headers["Cache-Control"] = "private, no-store"
     policy = await settings_store.get_setting(session, POLICY_KEY, SoundPolicy().model_dump())
-    profile_id = principal.id if principal is not None and principal.kind == "user" else None
+    profile_id = account.id if account is not None else None
     preferences = None
     if profile_id is not None:
         stored = await settings_store.get_setting(

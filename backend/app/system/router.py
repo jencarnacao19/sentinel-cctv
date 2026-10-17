@@ -64,6 +64,16 @@ async def system_info(
     }
 
 
+@router.post("/setup/complete", summary="Finish the first-run setup")
+async def complete_setup(_: AdminPrincipal, session: SessionDep) -> dict[str, bool]:
+    """Called by the last step of the setup wizard. Nothing is checked here:
+    every step the wizard asks for can also be done later from the interface."""
+    await settings_store.set_setting(session, settings_store.SETUP_COMPLETED, True)
+    await session.commit()
+    logger.info("First-run setup finished")
+    return {"setup_completed": True}
+
+
 @router.get(
     "/health",
     summary="Health check (unauthenticated, used by Docker and monitoring)",

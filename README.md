@@ -38,20 +38,23 @@ To build the image yourself instead, clone this repository and run
 `docker compose -f compose.yml -f compose.source.yml up -d --build`; recordings
 then go to `/recordings`, which must belong to uid 1000.
 
-**2. Open Sentinel** in a browser at `http://<server-ip>:8090` and create your
-administrator account. `<server-ip>` is the local address of the machine
-running Docker, for example `192.168.50.50`; run `hostname -I` on that machine
-to see it.
+**2. Open Sentinel.** `docker compose logs sentinel` prints the address to open,
+for example `http://192.168.50.50:8090`. Sentinel then walks you through the
+setup: the administrator account, where recordings go and for how long, your
+cameras (found on the network or added by RTSP address), accounts for the
+family, and Home Assistant.
 
-**3. Add your cameras** under **Cameras**: discover them over ONVIF or enter
-their RTSP address. New cameras record continuously.
+**3. Watch.** After the setup the same address opens the camera wall. Family
+members sign in there with the accounts you made for them; administration is
+under **Admin**.
 
 **4. Optional: add it to Home Assistant**
 
 > The Home Assistant integration needs the Sentinel server from step 1. On its
 > own it does not record or connect to cameras.
 
-1. In Sentinel, create a token under **Settings → API tokens**.
+1. In Sentinel, create a token under **Settings → API tokens** (the setup offers
+   this as its last step).
 2. In Home Assistant, open **HACS → ⋮ → Custom repositories**, add
    `https://github.com/jencarnacao19/sentinel-cctv` as an **Integration**,
    install **Sentinel CCTV** and restart Home Assistant.

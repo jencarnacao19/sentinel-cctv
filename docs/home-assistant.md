@@ -53,7 +53,9 @@ and a deleted one becomes unavailable.
 3. Install **Sentinel CCTV**, then restart Home Assistant
 
 HACS installs only the `custom_components/sentinel` directory. The server is
-installed separately, as described in the main README.
+installed separately, as described in the main README. Sentinel's own setup
+ends with a Home Assistant step that shows these three steps, this server's
+address and a token created for it.
 
 ### By hand
 

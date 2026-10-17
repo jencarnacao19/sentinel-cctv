@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import tokens as token_utils
 from app.database.base import utcnow
-from app.database.models import ApiToken, ApiTokenScope, User
+from app.database.models import ApiToken, ApiTokenScope, AppSetting, User
 from app.logging_config import get_logger
 from app.security.passwords import (
     hash_password,
@@ -39,6 +39,18 @@ class AdminAlreadyExistsError(AuthError):
     pass
 
 
+class DuplicateUsernameError(AuthError):
+    pass
+
+
+class AccountNotFoundError(AuthError):
+    pass
+
+
+class AdministratorAccountError(AuthError):
+    """Viewer-account management never touches an administrator."""
+
+
 async def count_users(session: AsyncSession) -> int:
     result = await session.execute(select(func.count()).select_from(User))
     return int(result.scalar_one())
@@ -51,6 +63,13 @@ async def has_any_user(session: AsyncSession) -> bool:
 async def get_user_by_username(session: AsyncSession, username: str) -> User | None:
     result = await session.execute(select(User).where(User.username == username))
     return result.scalar_one_or_none()
+
+
+async def list_users(session: AsyncSession) -> list[User]:
+    result = await session.execute(
+        select(User).order_by(User.is_admin.desc(), func.lower(User.username))
+    )
+    return list(result.scalars())
 
 
 async def create_admin(session: AsyncSession, username: str, password: str) -> User:
@@ -76,6 +95,60 @@ async def create_admin(session: AsyncSession, username: str, password: str) -> U
     await session.flush()
     logger.info("Administrator account created", extra={"username": username})
     return user
+
+
+async def create_viewer_account(session: AsyncSession, username: str, password: str) -> User:
+    """An account that can watch cameras and recordings and change nothing."""
+    taken = await session.execute(
+        select(User.id).where(func.lower(User.username) == username.lower())
+    )
+    if taken.first() is not None:
+        raise DuplicateUsernameError("An account with this name already exists.")
+    problems = validate_password_strength(password)
+    if problems:
+        raise WeakPasswordError(problems)
+
+    user = User(
+        username=username,
+        password_hash=hash_password(password),
+        is_admin=False,
+        is_active=True,
+    )
+    session.add(user)
+    await session.flush()
+    logger.info("Viewer account created", extra={"username": username})
+    return user
+
+
+async def _viewer_account(session: AsyncSession, user_id: str) -> User:
+    user = await session.get(User, user_id)
+    if user is None:
+        raise AccountNotFoundError("Account not found.")
+    if user.is_admin:
+        raise AdministratorAccountError(
+            "Administrator accounts are managed by the administrator themselves."
+        )
+    return user
+
+
+async def set_viewer_password(session: AsyncSession, user_id: str, password: str) -> User:
+    user = await _viewer_account(session, user_id)
+    problems = validate_password_strength(password)
+    if problems:
+        raise WeakPasswordError(problems)
+    user.password_hash = hash_password(password)
+    await session.flush()
+    logger.info("Viewer account password reset", extra={"username": user.username})
+    return user
+
+
+async def delete_viewer_account(session: AsyncSession, user_id: str) -> None:
+    """Remove the account. Every device it is signed in on stops at once."""
+    user = await _viewer_account(session, user_id)
+    await session.execute(delete(AppSetting).where(AppSetting.key == f"appearance.user.{user.id}"))
+    await session.delete(user)
+    await session.flush()
+    logger.info("Viewer account removed", extra={"username": user.username})
 
 
 async def authenticate(session: AsyncSession, username: str, password: str) -> User:

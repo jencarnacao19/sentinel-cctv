@@ -27,7 +27,10 @@ describe('App viewer entry points', () => {
 
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const url = input instanceof Request ? input.url : input instanceof URL ? input.href : input
-      if (url.includes('/auth/status')) return Promise.resolve(json({ initialised: true }))
+      if (url.includes('/auth/status')) {
+        return Promise.resolve(json({ initialised: true, setup_completed: true }))
+      }
+      if (url.includes('/auth/me')) return Promise.resolve(json({ detail: 'Signed out' }, 401))
       if (url.includes('/viewer/session')) return Promise.resolve(new Response(null, { status: 204 }))
       if (url.includes('/viewer/system/status')) {
         return Promise.resolve(
@@ -88,5 +91,73 @@ describe('App viewer entry points', () => {
       )
     })
     expect(window.location.hash).toBe('')
+  })
+})
+
+function routes(table: Record<string, unknown>) {
+  return vi.fn((input: RequestInfo | URL) => {
+    const url = input instanceof Request ? input.url : input instanceof URL ? input.href : input
+    const path = url.replace(/^\/api\/v1/, '').split('?')[0]
+    if (path in table) {
+      const body = table[path]
+      return Promise.resolve(
+        body instanceof Response ? body : json(body),
+      )
+    }
+    return Promise.resolve(json([]))
+  })
+}
+
+const ADMIN = {
+  id: 'admin',
+  username: 'operator',
+  is_admin: true,
+  is_active: true,
+  last_login_at: null,
+  created_at: '2026-10-17T00:00:00Z',
+}
+
+describe('App first-run routing', () => {
+  it('sends an administrator back into the setup steps until they are finished', async () => {
+    vi.stubGlobal(
+      'fetch',
+      routes({
+        '/auth/status': { initialised: true, setup_completed: false },
+        '/auth/me': ADMIN,
+        '/storage/settings': { path: null, retention_days: 14, max_bytes: null, min_free_bytes: 0 },
+      }),
+    )
+    renderWithProviders(<App />, { route: '/admin' })
+
+    expect(
+      await screen.findByRole('heading', { name: 'Coming from another Sentinel?' }),
+    ).toBeInTheDocument()
+  })
+
+  it('keeps a viewer account out of administration', async () => {
+    vi.stubGlobal(
+      'fetch',
+      routes({
+        '/auth/status': { initialised: true, setup_completed: true },
+        '/auth/me': { ...ADMIN, id: 'amy', username: 'amy', is_admin: false },
+      }),
+    )
+    renderWithProviders(<App />, { route: '/admin' })
+
+    expect(await screen.findByRole('heading', { name: 'Live cameras' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sign out amy' })).toBeInTheDocument()
+  })
+
+  it('starts a brand-new server with the administrator account', async () => {
+    vi.stubGlobal(
+      'fetch',
+      routes({
+        '/auth/status': { initialised: false, setup_completed: false },
+        '/auth/me': new Response(JSON.stringify({ detail: 'Signed out' }), { status: 401 }),
+      }),
+    )
+    renderWithProviders(<App />, { route: '/' })
+
+    expect(await screen.findByRole('heading', { name: 'Welcome to Sentinel' })).toBeInTheDocument()
   })
 })

@@ -60,6 +60,19 @@ async def get_storage_root(session: AsyncSession, settings: Settings | None = No
     return Path(configured) if configured else settings.recordings_dir
 
 
+def shares_system_disk(root: Path, data_dir: Path) -> bool:
+    """Whether recordings sit on the same filesystem as Sentinel's own data.
+
+    In the standard install that filesystem is the container's 16 GB system
+    disk, which footage fills within days. A dedicated disk mounted for
+    recordings is a different filesystem.
+    """
+    try:
+        return os.stat(root).st_dev == os.stat(data_dir).st_dev
+    except OSError:
+        return False
+
+
 def write_marker(root: Path) -> None:
     marker = root / MARKER_FILENAME
     if not marker.exists():

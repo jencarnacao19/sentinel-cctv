@@ -19,7 +19,13 @@ from app.database.session import get_session
 from app.logging_config import get_logger
 from app.storage import cleanup, policy_preview, retention
 from app.storage.metrics import collect_recording_telemetry, estimate_retention_days
-from app.storage.root import StorageStatus, check_storage, get_storage_root, prepare_storage
+from app.storage.root import (
+    StorageStatus,
+    check_storage,
+    get_storage_root,
+    prepare_storage,
+    shares_system_disk,
+)
 from app.system import settings_store
 
 router = APIRouter(prefix="/storage", tags=["storage"])
@@ -66,6 +72,9 @@ class StorageUsage(BaseModel):
     estimated_days_remaining: float | None
     configured_retention_days: int | None
     camera_usage: list[CameraStorageUsage]
+    shares_system_disk: bool = False
+    """Recordings are on the same filesystem as Sentinel's data, normally the
+    small system disk rather than a disk meant for footage."""
 
 
 class StorageSettings(BaseModel):
@@ -189,6 +198,7 @@ async def storage_usage(
     database_bytes = await asyncio.to_thread(
         lambda: settings.database_path.stat().st_size if settings.database_path.exists() else 0
     )
+    on_system_disk = await asyncio.to_thread(shares_system_disk, root, settings.data_dir)
 
     return StorageUsage(
         path=str(root),
@@ -213,6 +223,7 @@ async def storage_usage(
         estimated_retention_days=estimated_retention,
         estimated_days_remaining=estimated_remaining,
         configured_retention_days=policy.retention_days,
+        shares_system_disk=on_system_disk,
         camera_usage=[
             CameraStorageUsage(
                 camera_id=camera.camera_id,

@@ -19,6 +19,8 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"  # noqa: S105 - scheme name, not a credential
     expires_at: datetime
+    is_admin: bool
+    """False for a viewer account, which belongs on the viewer and not in /admin."""
 
 
 class UserResponse(BaseModel):
@@ -36,6 +38,17 @@ class CreateAdminRequest(BaseModel):
     """Used once, by the first-run wizard."""
 
     username: str = Field(min_length=3, max_length=64, pattern=r"^[A-Za-z0-9._-]+$")
+    password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=1024)
+
+
+class CreateViewerAccountRequest(BaseModel):
+    """An account that can only watch: cameras, recordings and saved clips."""
+
+    username: str = Field(min_length=3, max_length=64, pattern=r"^[A-Za-z0-9._-]+$")
+    password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=1024)
+
+
+class SetPasswordRequest(BaseModel):
     password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=1024)
 
 

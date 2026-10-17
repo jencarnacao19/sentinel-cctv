@@ -18,8 +18,11 @@ every device or firmware version.
   with camera passwords optionally encrypted under a passphrase.
 - Storage monitoring, retention policies and previews, protected footage and
   safeguards against recording onto an unavailable storage mount.
-- Local administrator accounts, scoped integration tokens, encrypted camera
-  credentials and a separate restricted footage-operator interface.
+- A first-run setup in the browser: administrator account, recordings disk and
+  retention, cameras, family accounts and Home Assistant.
+- One local administrator account, viewer accounts for the people who only
+  watch, scoped integration tokens, encrypted camera credentials and a separate
+  restricted footage-operator interface.
 - A Home Assistant API and an embedded dashboard for live video and playback.
 - ONVIF camera discovery and supported PTZ controls, presets and native patrols.
   Optional local Tapo controls depend on camera capabilities.

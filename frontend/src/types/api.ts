@@ -2,6 +2,8 @@
 
 export interface AuthStatus {
   initialised: boolean
+  /** False until the administrator finishes the first-run setup steps. */
+  setup_completed: boolean
 }
 
 export interface User {
@@ -17,6 +19,8 @@ export interface LoginResponse {
   access_token: string
   token_type: string
   expires_at: string
+  /** False for a viewer account, which belongs on the viewer, not in /admin. */
+  is_admin: boolean
 }
 
 export interface LoginSecuritySettings {

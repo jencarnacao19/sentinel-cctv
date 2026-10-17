@@ -60,6 +60,34 @@ def _bearer_credential(connection: HTTPConnection, settings: Settings) -> str | 
     return None
 
 
+async def _user_from_session_token(credential: str, session: AsyncSession) -> User | None:
+    try:
+        payload = tokens.decode_access_token(credential)
+    except tokens.TokenError:
+        return None
+    user = await session.get(User, payload.subject)
+    if user is None or not user.is_active:
+        return None
+    return user
+
+
+async def get_session_user(
+    connection: HTTPConnection,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> User | None:
+    """The account signed in on this connection, administrator or viewer.
+
+    Only for what every account may do: watch through the viewer and manage
+    its own password and preferences. Everything else goes through a
+    principal, which a viewer account never becomes.
+    """
+    credential = _bearer_credential(connection, settings)
+    if not credential or tokens.looks_like_api_token(credential):
+        return None
+    return await _user_from_session_token(credential, session)
+
+
 async def get_optional_principal(
     connection: HTTPConnection,
     session: Annotated[AsyncSession, Depends(get_session)],
@@ -87,15 +115,13 @@ async def get_optional_principal(
             api_token=api_token,
         )
 
-    try:
-        payload = tokens.decode_access_token(credential)
-    except tokens.TokenError:
+    user = await _user_from_session_token(credential, session)
+    if user is None or not user.is_admin:
+        # A viewer account signs in to watch, and the viewer has its own
+        # authorisation. To every other route it is simply not signed in, so
+        # no endpoint written before these accounts existed can serve one.
         return None
-
-    user = await session.get(User, payload.subject)
-    if user is None or not user.is_active:
-        return None
-    return Principal(kind="user", id=user.id, name=user.username, is_admin=user.is_admin, user=user)
+    return Principal(kind="user", id=user.id, name=user.username, is_admin=True, user=user)
 
 
 async def get_current_principal(
@@ -107,15 +133,25 @@ async def get_current_principal(
 
 
 async def get_current_user(
-    principal: Annotated[Principal, Depends(get_current_principal)],
+    connection: HTTPConnection,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> User:
-    """Require a human session specifically (password changes, for example)."""
-    if principal.user is None:
+    """Require a human session specifically: an account's own password and profile.
+
+    Any account qualifies, a viewer account included; nothing behind this
+    dependency reaches beyond the signed-in account itself.
+    """
+    credential = _bearer_credential(connection, settings)
+    if credential and tokens.looks_like_api_token(credential):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This endpoint requires a signed-in user, not an API token.",
         )
-    return principal.user
+    user = await get_session_user(connection, session, settings)
+    if user is None:
+        raise _UNAUTHENTICATED
+    return user
 
 
 async def require_admin(
@@ -174,3 +210,4 @@ CameraControlPrincipal = Annotated[Principal, Depends(require_camera_control)]
 AdminCameraControlPrincipal = Annotated[Principal, Depends(require_admin_or_camera_control)]
 IntegrationReadPrincipal = Annotated[Principal, Depends(require_admin_or_integration)]
 OptionalPrincipal = Annotated[Principal | None, Depends(get_optional_principal)]
+SessionUser = Annotated[User | None, Depends(get_session_user)]

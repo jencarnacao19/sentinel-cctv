@@ -62,6 +62,7 @@ import {
   useUpdateExport,
 } from '@/features/timeline/useTimeline'
 import { ViewerNav } from '@/features/viewer/ViewerNav'
+import { ViewerSignIn } from '@/features/viewer/ViewerSignIn'
 import { useViewerCameras } from '@/features/viewer/useViewerCameras'
 import { downloadViewerExport } from '@/features/viewer/access'
 import { ViewerSystemStrip } from '@/features/viewer/ViewerSystemStrip'
@@ -813,15 +814,17 @@ export function ViewerTimelinePage() {
           description="Review recordings, save a permanent clip and download it without opening settings."
         />
 
-        {cameras.isError ? (
-          <Alert variant="danger" title="Viewer access is not authorised.">
-            Open this page through Home Assistant or your configured sign-in page.
+        {cameras.error instanceof ApiError && cameras.error.isUnauthorized ? (
+          <ViewerSignIn />
+        ) : cameras.isError ? (
+          <Alert variant="danger" title="Could not load cameras">
+            The recorder continues running on the server.
           </Alert>
         ) : null}
 
         {!cameras.isError ? <ViewerSystemStrip compact /> : null}
 
-        {cameras.isPending ? (
+        {cameras.isError ? null : cameras.isPending ? (
           <Skeleton className="h-96" />
         ) : cameras.data && cameras.data.length === 0 ? (
           <EmptyState

@@ -33,6 +33,8 @@ export interface StorageUsage {
   estimated_days_remaining: number | null
   configured_retention_days: number | null
   camera_usage: CameraStorageUsage[]
+  /** Recordings share a filesystem with Sentinel's data: normally the small system disk. */
+  shares_system_disk: boolean
 }
 
 export interface StorageSettings {

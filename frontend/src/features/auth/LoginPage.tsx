@@ -31,8 +31,9 @@ export function LoginPage() {
     if (!canSubmit || login.isPending) return
     void (async () => {
       try {
-        await login.mutateAsync({ username: username.trim(), password })
-        await navigate('/admin', { replace: true })
+        const session = await login.mutateAsync({ username: username.trim(), password })
+        // A viewer account watches from the camera wall; it has no admin pages.
+        await navigate(session.is_admin ? '/admin' : '/', { replace: true })
       } catch {
         /* surfaced through login.error below */
       }

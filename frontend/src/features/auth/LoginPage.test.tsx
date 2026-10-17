@@ -72,6 +72,7 @@ describe('LoginPage', () => {
       access_token: 'token',
       token_type: 'bearer',
       expires_at: '2026-08-15T00:00:00Z',
+      is_admin: true,
     })
     const user = userEvent.setup()
     renderWithProviders(<LoginPage />)
@@ -81,6 +82,23 @@ describe('LoginPage', () => {
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
     await waitFor(() => expect(navigate).toHaveBeenCalledWith('/admin', { replace: true }))
+  })
+
+  it('sends a viewer account to the camera wall, not to administration', async () => {
+    stubFetch(200, {
+      access_token: 'token',
+      token_type: 'bearer',
+      expires_at: '2026-08-15T00:00:00Z',
+      is_admin: false,
+    })
+    const user = userEvent.setup()
+    renderWithProviders(<LoginPage />)
+
+    await user.type(screen.getByLabelText('Username'), 'amy')
+    await user.type(screen.getByLabelText('Password'), 'family-password-1')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/', { replace: true }))
   })
 
   it('shows the server message when credentials are wrong', async () => {

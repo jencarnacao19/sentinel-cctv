@@ -1,4 +1,5 @@
 import { screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { ViewerPage } from '@/features/viewer/ViewerPage'
@@ -113,15 +114,57 @@ describe('ViewerPage', () => {
     expect(await screen.findByText(/GB free$/)).toBeInTheDocument()
   })
 
-  it('explains when the page was opened outside its protected entry points', async () => {
+  it('asks for an account when nobody is signed in on this browser', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(json({ detail: 'Denied' }, 401))))
     renderWithProviders(<ViewerPage />)
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Viewer access is not authorised',
-    )
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'Open this page through Home Assistant or your configured sign-in page.',
-    )
+    expect(await screen.findByRole('heading', { name: 'Sign in to watch' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeDisabled()
+  })
+
+  it('shows the cameras once a viewer account signs in', async () => {
+    let signedIn = false
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      if (url.endsWith('/auth/login') && init?.method === 'POST') {
+        signedIn = true
+        return Promise.resolve(
+          json({ access_token: 't', token_type: 'bearer', expires_at: '2026-10-18T00:00:00Z', is_admin: false }),
+        )
+      }
+      if (!signedIn) return Promise.resolve(json({ detail: 'Denied' }, 401))
+      if (url.includes('/viewer/cameras')) {
+        return Promise.resolve(
+          json([
+            {
+              id: 'front-door',
+              name: 'Front door',
+              kind: 'rtsp',
+              status: 'online',
+              has_substream: false,
+              ptz_supported: false,
+              ptz_zoom_supported: false,
+              stream: { codec: 'h264', width: 1920, height: 1080, fps: 25, audio_codec: null, bitrate_kbps: null },
+            },
+          ]),
+        )
+      }
+      if (url.endsWith('/auth/me')) {
+        return Promise.resolve(
+          json({ id: 'amy', username: 'amy', is_admin: false, is_active: true, last_login_at: null, created_at: '2026-10-17T00:00:00Z' }),
+        )
+      }
+      return Promise.resolve(json({ detail: 'Not found' }, 404))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const user = userEvent.setup()
+    renderWithProviders(<ViewerPage />)
+
+    await user.type(await screen.findByLabelText('Username'), 'amy')
+    await user.type(screen.getByLabelText('Password'), 'family-password-1')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    expect(await screen.findByText('Stream: Front door')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Sign out amy' })).toBeInTheDocument()
   })
 })

@@ -15,6 +15,7 @@ import { StoragePage } from '@/features/storage/StoragePage'
 import { TimelinePage, ViewerTimelinePage } from '@/features/timeline/TimelinePage'
 import { ClipsPage } from '@/features/timeline/ClipsPage'
 import { ZonesPage } from '@/features/zones/ZonesPage'
+import { SetupWizard } from '@/features/setup/SetupWizard'
 import { ViewerPage } from '@/features/viewer/ViewerPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { SystemPage } from '@/pages/SystemPage'
@@ -46,6 +47,10 @@ function RequireAuth({ children }: { children: ReactNode }) {
   if (!user.data) {
     return <Navigate to="/admin/login" replace state={{ from: location.pathname }} />
   }
+  // A viewer account watches; administration is not for it.
+  if (!user.data.is_admin) return <Navigate to="/" replace />
+  // Until the setup steps are finished they are where the administrator works.
+  if (status.data?.setup_completed === false) return <Navigate to="/setup" replace />
   return <>{children}</>
 }
 
@@ -57,38 +62,42 @@ function RequireInitialisedViewer({ children }: { children: ReactNode }) {
   return <>{children}</>
 }
 
-/** Keeps a signed-in user (or an already-initialised server) off the setup and
- *  login screens. */
-function PublicOnly({ children, page }: { children: ReactNode; page: 'login' | 'setup' }) {
+/** Keeps a signed-in user, and a server with no administrator yet, off the
+ *  sign-in screen. */
+function PublicOnly({ children }: { children: ReactNode }) {
   const status = useAuthStatus()
   const user = useCurrentUser()
 
   if (status.isPending || user.isPending) return <FullPageSpinner />
-  if (user.data) return <Navigate to="/admin" replace />
-  if (page === 'setup' && status.data?.initialised) {
-    return <Navigate to="/admin/login" replace />
-  }
-  if (page === 'login' && status.data && !status.data.initialised) {
-    return <Navigate to="/setup" replace />
-  }
+  if (user.data) return <Navigate to={user.data.is_admin ? '/admin' : '/'} replace />
+  if (status.data && !status.data.initialised) return <Navigate to="/setup" replace />
   return <>{children}</>
+}
+
+/**
+ * First run, from start to finish: the administrator account, then the setup
+ * steps, then the camera wall this address serves from then on.
+ */
+function SetupRoute() {
+  const status = useAuthStatus()
+  const user = useCurrentUser()
+
+  if (status.isPending || user.isPending) return <FullPageSpinner />
+  if (!status.data?.initialised) return <SetupPage />
+  if (!user.data) return <Navigate to="/admin/login" replace state={{ from: '/setup' }} />
+  if (!user.data.is_admin) return <Navigate to="/" replace />
+  if (status.data.setup_completed) return <Navigate to="/admin" replace />
+  return <SetupWizard />
 }
 
 export function App() {
   return (
     <Routes>
-      <Route
-        path="/setup"
-        element={
-          <PublicOnly page="setup">
-            <SetupPage />
-          </PublicOnly>
-        }
-      />
+      <Route path="/setup" element={<SetupRoute />} />
       <Route
         path="/admin/login"
         element={
-          <PublicOnly page="login">
+          <PublicOnly>
             <LoginPage />
           </PublicOnly>
         }

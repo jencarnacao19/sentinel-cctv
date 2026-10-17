@@ -9,6 +9,7 @@ import { CameraTile, CameraTileSkeleton } from '@/features/live/CameraTile'
 import { columnsFor, LAYOUT_OPTIONS, type Layout } from '@/features/live/layout'
 import { VideoPlayer } from '@/features/live/VideoPlayer'
 import { ViewerNav } from '@/features/viewer/ViewerNav'
+import { ViewerSignIn } from '@/features/viewer/ViewerSignIn'
 import { ViewerSystemStrip } from '@/features/viewer/ViewerSystemStrip'
 import { useViewerCameras } from '@/features/viewer/useViewerCameras'
 import { useViewerSystemStatus } from '@/features/viewer/useViewerSystemStatus'
@@ -59,18 +60,14 @@ export function ViewerPage() {
           </Alert>
         ) : null}
 
-        {cameras.isError ? (
-          <Alert
-            variant="danger"
-            title={denied ? 'Viewer access is not authorised' : 'Could not load cameras'}
-          >
-            {denied
-              ? 'Open this page through Home Assistant or your configured sign-in page.'
-              : 'The recorder continues running on the server.'}
+        {denied ? <ViewerSignIn /> : null}
+        {cameras.isError && !denied ? (
+          <Alert variant="danger" title="Could not load cameras">
+            The recorder continues running on the server.
           </Alert>
         ) : null}
 
-        {cameras.isPending ? (
+        {denied ? null : cameras.isPending ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 3 }, (_, index) => (
               <CameraTileSkeleton key={index} />

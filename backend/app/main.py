@@ -41,7 +41,7 @@ from app.security.paths import UnsafePathError, resolve_within
 from app.security.redaction import redact_text
 from app.storage.cleanup import get_manager as get_cleanup_manager
 from app.streaming.manager import get_manager as get_streaming_manager
-from app.system import health, privacy
+from app.system import address, health, privacy, settings_store
 
 logger = get_logger("SYSTEM")
 
@@ -153,6 +153,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         "Sentinel is ready",
         extra={"port": settings.port, "data_dir": str(settings.data_dir)},
     )
+    async with session_scope() as session:
+        setup_completed = await settings_store.is_setup_completed(session)
+    address.announce(settings.port, setup_completed=setup_completed)
     try:
         yield
     finally:

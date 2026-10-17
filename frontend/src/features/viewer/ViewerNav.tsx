@@ -1,9 +1,10 @@
-import { History, LockKeyhole, Video } from 'lucide-react'
+import { History, LockKeyhole, LogOut, Video } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 import { Logo } from '@/components/Logo'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import { Button } from '@/components/ui/button'
+import { useCurrentUser, useLogout } from '@/features/auth/useAuth'
 import { cn } from '@/lib/utils'
 
 /**
@@ -18,6 +19,11 @@ import { cn } from '@/lib/utils'
  * title sits underneath the status bar and the notch cuts the logo in half.
  */
 export function ViewerNav({ current }: { current: 'live' | 'playback' }) {
+  // Only a password sign-in can be signed out of; Home Assistant and
+  // Cloudflare Access visitors have no account here.
+  const account = useCurrentUser().data
+  const logout = useLogout()
+
   return (
     <header
       className={cn(
@@ -67,6 +73,19 @@ export function ViewerNav({ current }: { current: 'live' | 'playback' }) {
           <div className="hidden sm:block">
             <ThemeToggle />
           </div>
+          {account ? (
+            <Button
+              variant="ghost"
+              className="min-h-11 px-2.5 sm:px-3"
+              onClick={() => logout.mutate()}
+              loading={logout.isPending}
+              aria-label={`Sign out ${account.username}`}
+              title={`Signed in as ${account.username}`}
+            >
+              <LogOut aria-hidden="true" />
+              <span className="hidden sm:inline">Sign out</span>
+            </Button>
+          ) : null}
           <Button asChild variant="ghost" className="min-h-11 px-2.5 sm:px-3">
             <Link
               to="/admin/login"

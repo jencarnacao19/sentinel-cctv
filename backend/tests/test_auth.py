@@ -63,7 +63,7 @@ class TestFirstRunSetup:
     async def test_status_reports_uninitialised(self, client: AsyncClient) -> None:
         response = await client.get("/api/v1/auth/status")
         assert response.status_code == 200
-        assert response.json() == {"initialised": False}
+        assert response.json() == {"initialised": False, "setup_completed": False}
 
     async def test_create_admin_then_status_flips(self, client: AsyncClient) -> None:
         response = await client.post(
@@ -78,7 +78,7 @@ class TestFirstRunSetup:
         assert "password_hash" not in body
 
         status_response = await client.get("/api/v1/auth/status")
-        assert status_response.json() == {"initialised": True}
+        assert status_response.json() == {"initialised": True, "setup_completed": False}
 
     async def test_second_admin_is_refused(self, client: AsyncClient) -> None:
         first = await client.post(

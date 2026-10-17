@@ -130,6 +130,10 @@ UPDATE_TARGET=""
 #: that already existed is the operator's, not this run's, to delete.
 RECORDINGS_PATH_CREATED=0
 
+#: Where the recordings-disk menu is drawn, appended line by line. Always the
+#: terminal in use; the test suite points it at a file to read the menu back.
+TTY_DEVICE=/dev/tty
+
 C_RESET=""
 C_BOLD=""
 C_DIM=""
@@ -266,8 +270,9 @@ OPTIONS
   --recordings-path <dir>  Bind-mount this host directory at /recordings instead
                            of leaving recordings on the container's root disk.
                            Created if missing, with the ownership Sentinel needs
-                           already applied. Default: none -- attach storage by
-                           hand afterwards (see AFTERWARDS).
+                           already applied. Default: asked, from a numbered list
+                           of the disks this host has mounted; with --yes, none
+                           -- attach storage by hand afterwards (AFTERWARDS).
   --unprivileged[=yes|no]  Run the container unprivileged. Default: yes.
   --privileged             Same as --unprivileged=no. Not recommended.
   --debian <13|12>         Template series. Default: 13, falling back to 12 when
@@ -308,7 +313,11 @@ UPDATING
   instance, or --ctid to target one of several existing installs by hand.
 
 AFTERWARDS
-  Without --recordings-path, recordings sit on the container's own root disk.
+  Sentinel's address is printed at the end and shown on the container's
+  console. Opening it starts the setup: administrator account, recordings,
+  cameras, family accounts and Home Assistant.
+
+  Without a recordings disk, recordings sit on the container's own root disk.
   Point Sentinel at storage you already have -- this only mounts a path, it is
   not destructive, nothing is formatted or erased:
 
@@ -654,6 +663,61 @@ bytes_to_gib() {
 	printf '%s' $(($1 / 1073741824))
 }
 
+# Directory-backed Proxmox storages, as "name<TAB>path" lines, from storage.cfg.
+# Network storages mount under /mnt/pve/<name> unless the config names a path.
+# Block storage (LVM, ZFS pools, Ceph RBD) has no folder to put recordings in
+# and is left out, as is a storage marked disabled. $1 overrides the config
+# file for tests.
+storage_cfg_directories() {
+	local cfg="${1:-/etc/pve/storage.cfg}"
+	[ -r "$cfg" ] || return 0
+	awk '
+		function flush() {
+			if (name != "" && !disabled) {
+				if (path == "" && type != "dir" && type != "btrfs") path = "/mnt/pve/" name
+				if (path != "") printf "%s\t%s\n", name, path
+			}
+			name = ""; path = ""; type = ""; disabled = 0
+		}
+		/^[a-z]+:/ {
+			flush()
+			split($0, head, ":")
+			if (head[1] ~ /^(dir|btrfs|nfs|cifs|cephfs|glusterfs)$/) {
+				type = head[1]
+				name = head[2]
+				gsub(/^[ \t]+|[ \t]+$/, "", name)
+			}
+			next
+		}
+		name != "" && $1 == "path" { path = $2 }
+		name != "" && $1 == "disable" { disabled = 1 }
+		END { flush() }
+	' "$cfg"
+}
+
+# Mounted data filesystems worth offering for recordings, from the output of
+# `findmnt -rn -o TARGET,FSTYPE` on stdin: disks and shares mounted for data
+# under /mnt, /media or /srv, and ZFS datasets with a mountpoint of their own.
+# The system's own mounts never qualify. One target per line.
+data_mount_targets() {
+	awk '
+		$1 ~ /^\/(mnt|media|srv)\/./ && $2 ~ /^(ext[234]|xfs|btrfs|zfs|ntfs3?|exfat|f2fs|fuseblk|nfs4?|cifs|smb3)$/ { print $1; next }
+		$2 == "zfs" && $1 ~ /^\/./ && $1 !~ /^\/(rpool\/ROOT|var|usr|boot|etc|proc|sys|dev|run|tmp|root|home)(\/|$)/ { print $1 }
+	'
+}
+
+# What makes two paths "the same disk" for the system-disk warning: the device
+# for an ordinary filesystem, the pool for ZFS (two datasets of one pool report
+# different devices but share every byte of space).
+filesystem_key() {
+	if [ "$2" = "zfs" ]; then
+		printf '%s' "${1%%/*}"
+	else
+		printf '%s' "$1"
+	fi
+}
+
+
 # --- Configuration dump -------------------------------------------------------
 
 print_config() {
@@ -886,6 +950,92 @@ resolve_settings() {
 }
 
 # --- Recordings storage --------------------------------------------------------
+
+# Offers, numbered, the disks this host could keep recordings on, when
+# --recordings-path was not given. It only lists folders on filesystems that
+# are already mounted: like the rest of this script it never formats or mounts
+# anything, it only decides where the recordings folder is created. The disk
+# Proxmox itself runs from is listed last and marked, because continuous
+# recording fills it within days.
+choose_recordings_storage() {
+	[ -z "$RECORDINGS_PATH" ] || return 0
+	[ "$ASSUME_YES" -eq 0 ] || return 0
+	step "Recordings disk"
+
+	local root_source="" root_fstype="" root_key
+	read -r root_source root_fstype < <(findmnt -rn -o SOURCE,FSTYPE --target / 2>/dev/null) || true
+	root_key="$(filesystem_key "$root_source" "$root_fstype")"
+
+	local -a found=()
+	local name path
+	while IFS=$'\t' read -r name path; do
+		[ -n "$path" ] && found+=("$path|storage $name")
+	done < <(storage_cfg_directories)
+	while IFS= read -r path; do
+		[ -n "$path" ] && found+=("$path|")
+	done < <(findmnt -rn -o TARGET,FSTYPE 2>/dev/null | data_mount_targets)
+
+	# One line per distinct folder: free bytes, whether it is the system disk,
+	# the folder and what it is, sorted so the roomiest real disk comes first.
+	local entry label fs_source fstype key avail system seen=" " rows=""
+	for entry in "${found[@]}"; do
+		path="${entry%%|*}"
+		label="${entry#*|}"
+		case "$seen" in *" $path "*) continue ;; esac
+		seen="$seen$path "
+		[ -d "$path" ] || continue
+		avail="$(df_avail_bytes "$path")" || continue
+		read -r fs_source fstype < <(findmnt -rn -o SOURCE,FSTYPE --target "$path" 2>/dev/null) || continue
+		key="$(filesystem_key "$fs_source" "$fstype")"
+		system=0
+		[ "$key" != "$root_key" ] || system=1
+		rows+="$avail"$'\t'"$system"$'\t'"$path"$'\t'"$label"$'\n'
+	done
+
+	local -a choices=()
+	local line count=0 default="" note_text
+	info "Sentinel records all the time, so recordings need a disk with room for them."
+	info "Where should they go?"
+	printf '\n' >>"$TTY_DEVICE"
+	while IFS=$'\t' read -r avail system path label; do
+		[ -n "$path" ] || continue
+		count=$((count + 1))
+		choices+=("$path")
+		note_text="$label"
+		if [ "$system" -eq 1 ]; then
+			note_text="the disk Proxmox runs from${label:+, $label}"
+		elif [ -z "$default" ]; then
+			default="$count"
+		fi
+		printf '      %2d) %-34s %6s GiB free%s\n' "$count" "$path" "$(bytes_to_gib "$avail")" \
+			"${note_text:+   ($note_text)}" >>"$TTY_DEVICE"
+	done < <(printf '%s' "$rows" | sort -t $'\t' -k2,2n -k1,1nr)
+	count=$((count + 1))
+	printf '      %2d) %-34s for a first test only\n\n' "$count" "Inside the container (${DISK} GB)" >>"$TTY_DEVICE"
+	[ -n "$default" ] || default="$count"
+
+	local answer=""
+	while true; do
+		ask answer "Recordings disk" "$default"
+		case "$answer" in
+		'' | *[!0-9]*) ;;
+		*)
+			if [ "$((10#$answer))" -ge 1 ] && [ "$((10#$answer))" -le "$count" ]; then
+				break
+			fi
+			;;
+		esac
+		printf 'Type a number from 1 to %s.\n' "$count" >>"$TTY_DEVICE"
+	done
+	answer=$((10#$answer))
+	if [ "$answer" -lt "$count" ]; then
+		RECORDINGS_PATH="${choices[$((answer - 1))]%/}/sentinel-recordings"
+		info "Recordings will go to $RECORDINGS_PATH."
+	else
+		info "Recordings stay inside the container for now; --help explains attaching a disk later."
+	fi
+}
+
 
 # Prepares --recordings-path on the *host* side, before the container exists to
 # bind-mount it into. A no-op when the flag was not given at all -- recordings
@@ -1321,6 +1471,7 @@ write_provision_script() {
 		printf 'INSTALL_DIR=%q\n' "$INSTALL_DIR"
 		printf 'RECORDINGS_DIR=%q\n' "$RECORDINGS_DIR"
 		printf 'APP_UID=%q\n' "$APP_UID"
+		printf 'SENTINEL_PORT=%q\n' "$SENTINEL_PORT"
 		cat <<'PROVISION'
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
@@ -1403,6 +1554,17 @@ else
 	# Something is already mounted or stored here. Whose it is and who should own
 	# it is the operator's call, not this script's.
 	say "${RECORDINGS_DIR} is not empty; leaving its contents and ownership untouched."
+fi
+
+# The container's console says where to go, as an appliance does: at the
+# login prompt agetty replaces \4 with the address of the interface that is up.
+if ! grep -q 'Sentinel CCTV' /etc/issue 2>/dev/null; then
+	debian_issue="$(cat /etc/issue 2>/dev/null || true)"
+	{
+		printf 'Sentinel CCTV\n'
+		printf 'Open http://\\4:%s in a browser to set it up and to watch the cameras.\n\n' "$SENTINEL_PORT"
+		printf '%s\n' "$debian_issue"
+	} >/etc/issue
 fi
 
 cd "$INSTALL_DIR"
@@ -1490,10 +1652,10 @@ final_message() {
 	fi
 
 	printf '\n%sNext%s\n' "$C_BOLD" "$C_RESET"
-	printf '  1. Open the URL and create your administrator account.\n'
-	if [ -n "$RECORDINGS_PATH" ]; then
-		printf '  2. Add your cameras by RTSP URL.\n'
-	else
+	printf '  1. Open the URL. Sentinel walks you through the rest: the administrator\n'
+	printf '     account, recordings, cameras, family accounts and Home Assistant.\n'
+	printf '     The same address shows in this container'"'"'s console.\n'
+	if [ -z "$RECORDINGS_PATH" ]; then
 		printf '  2. Attach real storage for recordings. This only mounts a path you already\n'
 		printf '     have -- nothing is formatted and nothing is deleted:\n\n'
 		printf '       pct stop %s\n' "$CTID"
@@ -1501,7 +1663,6 @@ final_message() {
 		printf '       chown -R %s\n' "$owner_hint"
 		printf '       pct start %s\n' "$CTID"
 		printf '\n     Then point Sentinel at %s in Settings > Storage.\n' "$RECORDINGS_DIR"
-		printf '  3. Add your cameras by RTSP URL.\n'
 	fi
 
 	printf '\n%sHandy%s\n' "$C_BOLD" "$C_RESET"
@@ -1607,6 +1768,7 @@ main() {
 	fi
 
 	resolve_settings
+	choose_recordings_storage
 	resolve_recordings_storage
 	resolve_template
 	summary_and_confirm

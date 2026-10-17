@@ -46,7 +46,8 @@ async def test_preferences_survive_reload_and_are_isolated(admin_client):
     denied = await admin_client.put(
         "/api/v1/appearance/sound-policy", headers=headers, json={"hover_sounds_allowed": False}
     )
-    assert denied.status_code == 403
+    # A viewer account is signed out as far as administration is concerned.
+    assert denied.status_code == 401
 
 
 async def test_shared_viewer_cannot_save_account_preferences_or_policy(client, settings):

@@ -3,8 +3,9 @@
 # Exercises the pure logic inside install-proxmox.sh.
 #
 # What this proves: argument parsing, validation, version comparison, uid
-# mapping, memory arithmetic, byte conversion, and the two config-directory
-# scans (path_already_mounted, list_marked_containers) behave correctly,
+# mapping, memory arithmetic, byte conversion, the two config-directory scans
+# (path_already_mounted, list_marked_containers) and the parsing behind the
+# recordings-disk menu behave correctly,
 # including on the inputs that would silently do the wrong thing -- an octal-
 # looking "016", a --recordings-path of /etc, a pveversion string from a future
 # Proxmox.
@@ -147,6 +148,128 @@ if path_already_mounted /tank/rec "$CONF_DIR" >/dev/null; then
 else
 	pass "a prefix of another path is not a match"
 fi
+
+printf -- '\n-- storage_cfg_directories --\n'
+cat >"$CONF_DIR/storage.cfg" <<'EOF'
+dir: local
+	path /var/lib/vz
+	content iso,vztmpl,backup
+
+lvmthin: local-lvm
+	thinpool data
+	vgname pve
+	content rootdir,images
+
+dir: disk2
+	path /mnt/disk2
+	content backup
+
+nfs: nas
+	export /volume1/proxmox
+	server 192.168.50.10
+	content backup
+
+cifs: old-share
+	path /mnt/pve/old-share
+	server 192.168.50.11
+	disable
+
+zfspool: tank
+	pool tank
+	content images,rootdir
+EOF
+check "lists folder storages with their paths, block storage left out" \
+	"$(printf 'local\t/var/lib/vz\ndisk2\t/mnt/disk2\nnas\t/mnt/pve/nas')" \
+	"$(storage_cfg_directories "$CONF_DIR/storage.cfg")"
+check "nothing when there is no storage.cfg" "" "$(storage_cfg_directories "$CONF_DIR/missing.cfg")"
+
+printf -- '\n-- data_mount_targets --\n'
+MOUNTS="$(printf '%s\n' \
+	'/ ext4' \
+	'/boot/efi vfat' \
+	'/mnt/usb ext4' \
+	'/mnt/pve/nas nfs4' \
+	'/media/backup ntfs3' \
+	'/srv/footage xfs' \
+	'/mnt/iso iso9660' \
+	'/tank zfs' \
+	'/rpool/ROOT/pve-1 zfs' \
+	'/var/lib/docker ext4' \
+	'/run/lock tmpfs')"
+check "offers data disks and shares, never the system's own mounts" \
+	"$(printf '/mnt/usb\n/mnt/pve/nas\n/media/backup\n/srv/footage\n/tank')" \
+	"$(printf '%s\n' "$MOUNTS" | data_mount_targets)"
+
+printf -- '\n-- filesystem_key --\n'
+check "an ordinary filesystem is its device" "/dev/sdb1" "$(filesystem_key /dev/sdb1 ext4)"
+check "a ZFS dataset is its pool" "rpool" "$(filesystem_key rpool/data zfs)"
+check "the system dataset shares that pool" "rpool" "$(filesystem_key rpool/ROOT/pve-1 zfs)"
+
+printf -- '\n-- choose_recordings_storage --\n'
+# The whole menu, against three folders standing in for disks. findmnt,
+# df and the storage list are replaced; ask() answers with $MENU_ANSWER, or
+# with the default it was offered when that is empty.
+DISKS="$(mktemp -d)"
+mkdir -p "$DISKS/vz" "$DISKS/usb" "$DISKS/big"
+storage_cfg_directories() {
+	printf 'local\t%s\nusb\t%s\nbig\t%s\n' "$DISKS/vz" "$DISKS/usb" "$DISKS/big"
+}
+findmnt() {
+	local target="${!#}"
+	case "$*" in
+	*TARGET,FSTYPE*) return 0 ;;
+	esac
+	case "$target" in
+	/ | "$DISKS/vz") printf '/dev/mapper/pve-root ext4\n' ;;
+	"$DISKS/usb") printf '/dev/sdb1 ext4\n' ;;
+	"$DISKS/big") printf '/dev/sdc1 xfs\n' ;;
+	esac
+}
+df_avail_bytes() {
+	case "$1" in
+	"$DISKS/vz") printf '%s' $((80 * 1073741824)) ;;
+	"$DISKS/usb") printf '%s' $((500 * 1073741824)) ;;
+	"$DISKS/big") printf '%s' $((3000 * 1073741824)) ;;
+	esac
+}
+ask() {
+	printf -v "$1" '%s' "${MENU_ANSWER:-$3}"
+}
+MENU_FILE="$DISKS/menu.txt"
+# shellcheck disable=SC2034 # read by the sourced installer, which shellcheck cannot follow
+pick_disk() {
+	RECORDINGS_PATH=""
+	ASSUME_YES=0
+	DISK=16
+	TTY_DEVICE="$MENU_FILE"
+	MENU_ANSWER="$1"
+	: >"$MENU_FILE"
+	choose_recordings_storage >/dev/null
+}
+pick_disk ""
+check "the roomiest disk that is not the system disk is the default" \
+	"$DISKS/big/sentinel-recordings" "$RECORDINGS_PATH"
+check "the system disk is listed last among the disks, and says so" \
+	"1" "$(grep -c '^ *3) .*the disk Proxmox runs from' "$MENU_FILE")"
+check "the container itself is always the last choice" \
+	"1" "$(grep -c '^ *4) Inside the container (16 GB)' "$MENU_FILE")"
+pick_disk 3
+check "the system disk can still be chosen on purpose" \
+	"$DISKS/vz/sentinel-recordings" "$RECORDINGS_PATH"
+pick_disk 4
+check "the last choice keeps recordings inside the container" "" "$RECORDINGS_PATH"
+pick_disk ""
+# shellcheck disable=SC2034 # same reason as above
+ASSUME_YES=1
+RECORDINGS_PATH=""
+choose_recordings_storage >/dev/null
+check "--yes asks nothing and keeps the old default" "" "$RECORDINGS_PATH"
+RECORDINGS_PATH="/tank/recordings"
+ASSUME_YES=0
+choose_recordings_storage >/dev/null
+check "--recordings-path is never second-guessed" "/tank/recordings" "$RECORDINGS_PATH"
+rm -rf "$DISKS"
+unset -f storage_cfg_directories findmnt df_avail_bytes ask pick_disk
 
 printf -- '\n-- list_marked_containers --\n'
 cat >"$CONF_DIR/102.conf" <<EOF

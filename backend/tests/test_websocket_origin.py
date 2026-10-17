@@ -9,12 +9,9 @@ socket with that cookie and read the video.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
 
 import pytest
-import uvicorn
 import websockets
-from fastapi import FastAPI
 from httpx import AsyncClient
 from pydantic import SecretStr
 from starlette.requests import HTTPConnection
@@ -102,29 +99,6 @@ class TestOriginCheck:
         assert request_origin(_socket({"host": "cctv.example.net"}, scheme="wss")) == (
             "https://cctv.example.net"
         )
-
-
-@pytest.fixture
-async def ws_server(app: FastAPI) -> AsyncIterator[str]:
-    """A real TCP server for ``app`` sharing the lifespan the fixture started."""
-    config = uvicorn.Config(
-        app,
-        host="127.0.0.1",
-        port=0,
-        lifespan="off",
-        log_config=None,
-        log_level="warning",
-    )
-    server = uvicorn.Server(config)
-    task = asyncio.create_task(server.serve())
-    try:
-        while not server.started:
-            await asyncio.sleep(0.01)
-        port = server.servers[0].sockets[0].getsockname()[1]
-        yield f"127.0.0.1:{port}"
-    finally:
-        server.should_exit = True
-        await task
 
 
 async def _camera_id(admin_client: AsyncClient) -> str:

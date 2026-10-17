@@ -14,8 +14,8 @@ const MIN_PASSWORD_LENGTH = 10
 /**
  * First run, step one: create the administrator.
  *
- * Later steps (storage, cameras, recording, Home Assistant) are added by the
- * phases that implement them, so the wizard never shows a step that does nothing.
+ * Signing in straight afterwards hands over to the setup steps (storage,
+ * cameras, family accounts, Home Assistant) in `SetupWizard`.
  */
 export function SetupPage() {
   const navigate = useNavigate()
@@ -48,7 +48,7 @@ export function SetupPage() {
       try {
         await createAdmin.mutateAsync({ username: username.trim(), password })
         await login.mutateAsync({ username: username.trim(), password })
-        await navigate('/admin', { replace: true })
+        await navigate('/setup', { replace: true })
       } catch {
         /* surfaced through errorMessage */
       }
