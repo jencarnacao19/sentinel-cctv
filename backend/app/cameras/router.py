@@ -139,6 +139,15 @@ async def _sync_streams(
         logger.warning("Could not synchronise motion workers", exc_info=True)
 
 
+async def sync_camera_runtime() -> None:
+    """Bring go2rtc, recorders and motion workers in line with the camera list.
+
+    For callers outside this router that change cameras in bulk, such as a
+    configuration import.
+    """
+    await _sync_streams()
+
+
 async def _load(session: AsyncSession, camera_id: str) -> Camera:
     try:
         return await service.get_camera(session, camera_id)

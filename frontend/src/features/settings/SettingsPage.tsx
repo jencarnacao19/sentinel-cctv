@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { ApiError, API_BASE, NetworkError } from '@/api/client'
 import { SoundPolicyCard } from '@/features/appearance/SoundPolicyCard'
+import { MoveMachineCard } from '@/features/settings/MoveMachineCard'
 import { authApi, queryKeys } from '@/api/endpoints'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Alert } from '@/components/ui/alert'
@@ -677,6 +678,7 @@ export function SettingsPage() {
       <SoundPolicyCard />
       <LoginSecurityCard />
       <BackupCard />
+      <MoveMachineCard />
       <PasswordCard />
       <DiagnosticsCard />
     </div>

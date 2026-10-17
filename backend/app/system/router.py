@@ -10,8 +10,9 @@ import time
 from pathlib import Path
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Response, UploadFile, status
 from fastapi.responses import FileResponse
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.background import BackgroundTask
 
@@ -20,7 +21,7 @@ from app.auth.deps import AdminCameraControlPrincipal, AdminPrincipal, CurrentPr
 from app.config import Settings, get_settings
 from app.database.session import get_session
 from app.logging_config import get_logger
-from app.system import backup, diagnostics, health, privacy, settings_store
+from app.system import backup, config_transfer, diagnostics, health, privacy, settings_store
 
 router = APIRouter(prefix="/system", tags=["system"])
 logger = get_logger("SYSTEM")
@@ -218,6 +219,79 @@ async def create_backup(_: AdminPrincipal, settings: SettingsDep) -> FileRespons
         filename=backup.suggested_filename(),
         background=BackgroundTask(destination.unlink, missing_ok=True),
     )
+
+
+class ConfigExportRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    include_passwords: bool = False
+    passphrase: str | None = Field(default=None, max_length=256)
+
+
+@router.post(
+    "/config/export",
+    summary="Download cameras, zones and settings as YAML, to move to another machine",
+    response_class=Response,
+    responses={200: {"content": {"application/yaml": {}}}},
+)
+async def export_configuration(
+    payload: ConfigExportRequest, _: AdminPrincipal, session: SessionDep
+) -> Response:
+    if payload.include_passwords and not payload.passphrase:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Choose a passphrase to protect the camera passwords in the file.",
+        )
+    try:
+        text = await config_transfer.export_config(
+            session, passphrase=payload.passphrase if payload.include_passwords else None
+        )
+    except config_transfer.ConfigTransferError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+        ) from exc
+    filename = f"sentinel-config-{time.strftime('%Y-%m-%d')}.yaml"
+    return Response(
+        content=text,
+        media_type="application/yaml",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@router.post("/config/import", summary="Add the cameras and settings from an exported YAML file")
+async def import_configuration(
+    _: AdminPrincipal,
+    session: SessionDep,
+    file: UploadFile,
+    passphrase: Annotated[str | None, Form(max_length=256)] = None,
+) -> dict[str, Any]:
+    raw = await file.read(config_transfer.MAX_FILE_BYTES + 1)
+    try:
+        document = config_transfer.read_document(raw)
+        summary = await config_transfer.import_config(
+            session, document, passphrase=passphrase or None
+        )
+    except config_transfer.ConfigTransferError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+        ) from exc
+    await session.commit()
+    if summary.cameras_added:
+        from app.cameras.router import sync_camera_runtime
+
+        await sync_camera_runtime()
+    return {
+        "cameras_added": summary.cameras_added,
+        "cameras_skipped": summary.cameras_skipped,
+        "settings_applied": summary.settings_applied,
+        "settings_skipped": summary.settings_skipped,
+        "warnings": summary.warnings,
+        "passwords_restored": summary.passwords_restored,
+    }
 
 
 @router.post("/backup/inspect", summary="Describe a backup without applying it")
