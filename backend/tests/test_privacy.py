@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock
-
 import yaml
 from httpx import AsyncClient
 
-from app.cameras.tapo_battery import get_manager as get_tapo_battery_manager
 from app.config import Settings
 from app.database.session import session_scope
 from app.motion.manager import get_manager as get_motion_manager
@@ -44,8 +41,6 @@ class TestPrivacyApi:
     async def test_enable_blocks_camera_access_and_disable_restores_runtime(
         self, admin_client: AsyncClient, settings: Settings, monkeypatch
     ) -> None:
-        close_battery_streams = AsyncMock()
-        monkeypatch.setattr(get_tapo_battery_manager(), "close_all", close_battery_streams)
         camera = (await admin_client.post("/api/v1/cameras", json=CAMERA)).json()
 
         enabled = await admin_client.put(
@@ -70,7 +65,6 @@ class TestPrivacyApi:
         assert get_streaming_manager().privacy_paused is True
         assert get_recording_manager().privacy_paused is True
         assert get_motion_manager().privacy_paused is True
-        close_battery_streams.assert_awaited_once()
         generated = yaml.safe_load(settings.go2rtc_config_path.read_text(encoding="utf-8"))
         assert generated["streams"] == {}
 

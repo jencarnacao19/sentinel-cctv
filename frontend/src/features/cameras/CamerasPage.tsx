@@ -34,7 +34,7 @@ export function CamerasPage() {
         description={
           recordable && recordable.length > 0
             ? `${recording} of ${recordable.length} recording.`
-            : 'Continuous RTSP sources and event-based local battery cameras.'
+            : 'Continuous recording from RTSP cameras and NVR channels.'
         }
         actions={
           <>

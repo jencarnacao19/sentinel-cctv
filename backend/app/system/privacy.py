@@ -175,7 +175,6 @@ class PrivacyManager:
     async def apply_loaded_state(self) -> None:
         """Prime managers before their normal lifespan start methods run."""
         enabled = self._state.enabled
-        from app.cameras.tapo_timed import get_manager as get_timed_manager
         from app.motion.manager import get_manager as get_motion_manager
         from app.recording.manager import get_manager as get_recording_manager
         from app.streaming.manager import get_manager as get_streaming_manager
@@ -183,11 +182,8 @@ class PrivacyManager:
         get_streaming_manager().initialise_privacy(enabled)
         get_recording_manager().initialise_privacy(enabled)
         get_motion_manager().initialise_privacy(enabled)
-        get_timed_manager().initialise_privacy(enabled)
 
     async def _apply_runtime(self, enabled: bool) -> list[Exception]:
-        from app.cameras.tapo_battery import get_manager as get_tapo_battery_manager
-        from app.cameras.tapo_timed import get_manager as get_timed_manager
         from app.motion.manager import get_manager as get_motion_manager
         from app.recording.manager import get_manager as get_recording_manager
         from app.streaming.manager import get_manager as get_streaming_manager
@@ -200,11 +196,6 @@ class PrivacyManager:
                     self._capture(get_streaming_manager().set_privacy_paused(True)),
                     self._capture(get_recording_manager().set_privacy_paused(True)),
                     self._capture(get_motion_manager().set_privacy_paused(True)),
-                    # Ended first among the vendor paths: a timed recording owns
-                    # the camera reservation, and closing the sessions underneath
-                    # it would leave the writer reconnecting to a paused camera.
-                    self._capture(get_timed_manager().set_privacy_paused(True)),
-                    self._capture(get_tapo_battery_manager().close_all()),
                 )
             )
         else:
@@ -223,11 +214,6 @@ class PrivacyManager:
                     await asyncio.gather(
                         self._capture(get_recording_manager().set_privacy_paused(False)),
                         self._capture(get_motion_manager().set_privacy_paused(False)),
-                        # Cleared, not resumed. A timed recording is something a
-                        # person asked for at a particular moment; silently
-                        # restarting one when privacy ends would be Sentinel
-                        # deciding to record on its own.
-                        self._capture(get_timed_manager().set_privacy_paused(False)),
                     )
                 )
 

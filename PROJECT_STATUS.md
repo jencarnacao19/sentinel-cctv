@@ -30,11 +30,8 @@ every device or firmware version.
 - Use recording modes `continuous` or `off`. Motion-triggered and scheduled
   recording are not complete modes. A camera's recording switch is independent
   of its configured mode.
-- The TC82/H200 battery provider is experimental and disabled by default. Its
-  local control, streaming, event import and timed recording depend on firmware
-  and topology. Timed recording has automated media-fixture coverage; physical
-  camera acceptance is still required. Follow the
-  [provider checklist](docs/TC82_LOCAL_PROVIDER.md) before relying on it.
+- Tapo battery cameras (TC82/H200) are not in releases. They are being
+  developed on the `dev` branch and its `:dev` image, for test servers only.
 - The native Home Assistant camera entity provides snapshots. Use the embedded
   Sentinel dashboard for live viewing and timeline playback.
 - ONVIF discovery requires enabled, reachable camera services and a network that

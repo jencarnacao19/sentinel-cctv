@@ -11,7 +11,6 @@ from fastapi import APIRouter
 
 from app.auth.router import router as auth_router
 from app.cameras.router import router as cameras_router
-from app.cameras.tapo_battery_router import router as tapo_battery_router
 from app.cameras.tapo_router import router as tapo_router
 from app.discovery.router import router as discovery_router
 from app.integrations.router import router as integrations_router
@@ -35,10 +34,6 @@ api_router.include_router(system_router)
 api_router.include_router(appearance_router)
 api_router.include_router(auth_router)
 api_router.include_router(viewer_router)
-# The static /cameras/tapo-battery/test route must precede the generic
-# /cameras/{camera_id}/test route or FastAPI interprets "tapo-battery" as an
-# id. Per-camera battery routes remain under the same local-first namespace.
-api_router.include_router(tapo_battery_router)
 api_router.include_router(cameras_router)
 # Mounted after the camera router so /cameras/{id}/motion-zones resolves; both
 # share the /cameras prefix but have no overlapping paths.

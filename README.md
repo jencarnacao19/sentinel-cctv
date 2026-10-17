@@ -96,7 +96,7 @@ a recording switch. More in the [Home Assistant guide](docs/home-assistant.md).
 
 | Guide | What is in it |
 | --- | --- |
-| [Using Sentinel](docs/features.md) | PTZ, recording switch, privacy mode, timeline, saved clips, battery cameras |
+| [Using Sentinel](docs/features.md) | PTZ, recording switch, privacy mode, timeline, saved clips |
 | [Home Assistant](docs/home-assistant.md) | Integration, dashboard and troubleshooting |
 | [Proxmox](docs/private-proxmox.md) | Building and running Sentinel in a Proxmox LXC |
 | [Remote access](docs/remote-access.md) | Footage console, Cloudflare Access and the embedded viewer |

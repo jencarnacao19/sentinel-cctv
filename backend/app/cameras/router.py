@@ -18,7 +18,6 @@ from app.auth.deps import (
 from app.auth.ratelimit import expensive_limiter, ptz_limiter
 from app.cameras import ptz, service
 from app.cameras import tapo as tapo_control
-from app.cameras import tapo_battery as tapo_battery_control
 from app.cameras.schemas import (
     CameraCreate,
     CameraIdentityResponse,
@@ -284,7 +283,6 @@ async def update_camera(
         # the next call as well, but retaining a session for credentials the
         # administrator explicitly removed is unnecessary and surprising.
         await tapo_control.get_manager().close(updated.id)
-        await tapo_battery_control.get_manager().close(updated.id)
     await _sync_streams(
         replace_streams=replaced_streams,
         restart_recorder_id=(
@@ -450,7 +448,6 @@ async def delete_camera(camera_id: str, _: AdminPrincipal, session: SessionDep) 
     await service.delete_camera(session, camera)
     await session.commit()
     await tapo_control.get_manager().close(camera_id)
-    await tapo_battery_control.get_manager().close(camera_id)
     await _sync_streams()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

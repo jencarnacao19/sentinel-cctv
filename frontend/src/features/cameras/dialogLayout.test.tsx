@@ -6,10 +6,8 @@ import { AddCameraDialog } from '@/features/cameras/AddCameraDialog'
 import { DiscoverCameraDialog } from '@/features/cameras/DiscoverCameraDialog'
 import { EditCameraDialog } from '@/features/cameras/EditCameraDialog'
 import { PtzSetupDialog } from '@/features/cameras/PtzSetupDialog'
-import { TapoBatteryConfigureDialog } from '@/features/cameras/TapoBatteryConfigureDialog'
-import { TapoBatteryDialog } from '@/features/cameras/TapoBatteryDialog'
 import { TapoLocalControlsDialog } from '@/features/cameras/TapoLocalControlsDialog'
-import { batteryCamera, tapoCamera } from '@/test/cameras'
+import { tapoCamera } from '@/test/cameras'
 import { renderWithProviders } from '@/test/utils'
 
 /**
@@ -42,16 +40,6 @@ const DIALOGS: { name: string; element: ReactElement; hasFooter: boolean }[] = [
   {
     name: 'Configure camera',
     element: <EditCameraDialog camera={tapoCamera} open onOpenChange={vi.fn()} />,
-    hasFooter: true,
-  },
-  {
-    name: 'Configure battery camera',
-    element: <TapoBatteryConfigureDialog camera={batteryCamera} open onOpenChange={vi.fn()} />,
-    hasFooter: true,
-  },
-  {
-    name: 'Battery camera',
-    element: <TapoBatteryDialog camera={batteryCamera} open onOpenChange={vi.fn()} />,
     hasFooter: true,
   },
   {

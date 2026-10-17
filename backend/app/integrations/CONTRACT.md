@@ -40,8 +40,8 @@ API tokens never have administrator privileges. New tokens default to
 `read_only`: camera lists, snapshots, live/playback media, events, system
 telemetry and the existing storage/retention reads. Choose `camera_control`
 for HA recording switches and camera tests; it also permits manual PTZ,
-per-camera recording, timed recording, privacy and supported local Tapo
-controls. General camera PATCH accepts only `recording_mode` for that scope;
+per-camera recording, privacy and supported local Tapo controls. General
+camera PATCH accepts only `recording_mode` for that scope;
 configuration, camera deletion, footage deletion/protection, exports,
 security, storage changes, backups, restore and token administration remain
 human-administrator operations. Camera reboot and preset/patrol configuration

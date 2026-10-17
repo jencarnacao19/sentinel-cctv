@@ -27,16 +27,10 @@ import type {
   StreamTestResult,
   SystemInfo,
   TapoAction,
-  TapoBatteryClip,
-  TapoBatteryStatus,
-  TapoBatterySyncResult,
-  TapoBatteryTestPayload,
   TapoCapabilities,
   TapoFeature,
   TapoFeaturePayload,
   TapoState,
-  TimedRecordingOptions,
-  TimedRecordingStatus,
   User,
 } from '@/types/api'
 
@@ -178,24 +172,6 @@ export const camerasApi = {
     const suffix = query.toString()
     return `/api/v1/cameras/${encodeURIComponent(id)}/snapshot${suffix ? `?${suffix}` : ''}`
   },
-  testTapoBattery: (payload: TapoBatteryTestPayload) =>
-    api.post<TapoBatteryStatus>('/cameras/tapo-battery/test', payload, { timeoutMs: 30_000 }),
-  getTapoBatteryStatus: (id: string) =>
-    api.get<TapoBatteryStatus>(`/cameras/${encodeURIComponent(id)}/tapo-battery/status`, {
-      timeoutMs: 30_000,
-    }),
-  listTapoBatteryClips: (id: string) =>
-    api.get<TapoBatteryClip[]>(`/cameras/${encodeURIComponent(id)}/tapo-battery/clips`, {
-      timeoutMs: 45_000,
-    }),
-  syncTapoBatteryClips: (id: string, hours = 24, limit = 20) =>
-    api.post<TapoBatterySyncResult>(
-      `/cameras/${encodeURIComponent(id)}/tapo-battery/sync`,
-      { hours, limit },
-      { timeoutMs: 240_000 },
-    ),
-  tapoBatteryLiveUrl: (id: string, quality: 'HD' | 'SD' = 'HD') =>
-    `/api/v1/cameras/${encodeURIComponent(id)}/tapo-battery/live?quality=${quality}`,
   setRecording: (id: string, enabled: boolean, confirm = false) =>
     api.put<CameraRecordingResult>(
       `/cameras/${encodeURIComponent(id)}/recording`,
@@ -206,33 +182,6 @@ export const camerasApi = {
     api.post<CameraIdentity>(`/cameras/${encodeURIComponent(id)}/identify`, undefined, {
       timeoutMs: 20_000,
     }),
-  getTimedRecordingOptions: (id: string) =>
-    api.get<TimedRecordingOptions>(
-      `/cameras/${encodeURIComponent(id)}/tapo-battery/timed-recording/options`,
-      { timeoutMs: 30_000 },
-    ),
-  setTimedRecordingMax: (maxMinutes: number) =>
-    api.put<TimedRecordingOptions>('/cameras/tapo-battery/timed-recording/max-minutes', {
-      max_minutes: maxMinutes,
-    }),
-  getTimedRecording: (id: string) =>
-    api.get<TimedRecordingStatus | null>(
-      `/cameras/${encodeURIComponent(id)}/tapo-battery/timed-recording`,
-      // Polled while a recording runs, and answered from memory, so it gets a
-      // short ceiling: a slow answer here means something is wrong, not busy.
-      { timeoutMs: 10_000 },
-    ),
-  startTimedRecording: (id: string, minutes: number) =>
-    api.post<TimedRecordingStatus>(
-      `/cameras/${encodeURIComponent(id)}/tapo-battery/timed-recording`,
-      { minutes, accept_battery_drain: true },
-      { timeoutMs: 45_000 },
-    ),
-  stopTimedRecording: (id: string) =>
-    api.delete<TimedRecordingStatus>(
-      `/cameras/${encodeURIComponent(id)}/tapo-battery/timed-recording`,
-      { timeoutMs: 60_000 },
-    ),
 }
 
 export interface SegmentQuery {
@@ -272,21 +221,14 @@ export const queryKeys = {
   systemHealth: ['system', 'health'] as const,
   privacy: ['system', 'privacy'] as const,
   // Lists and per-camera resources deliberately have different prefixes.
-  // Invalidating the camera list must not re-run an active Tapo capability,
-  // battery-status or timed-recording query: those can wake a battery camera
-  // or consume one of the vendor pool's scarce workers.
+  // Invalidating the camera list must not re-run an active Tapo capability
+  // query: that consumes one of the vendor pool's scarce workers.
   cameras: ['cameras', 'list'] as const,
   camera: (id: string) => ['cameras', 'detail', id] as const,
   cameraPtzSetup: (id: string) => ['cameras', 'detail', id, 'ptz-setup'] as const,
   cameraTapoCapabilities: (id: string) =>
     ['cameras', 'detail', id, 'tapo-capabilities'] as const,
   cameraTapoState: (id: string) => ['cameras', 'detail', id, 'tapo-state'] as const,
-  cameraTapoBatteryStatus: (id: string) =>
-    ['cameras', 'detail', id, 'tapo-battery-status'] as const,
-  cameraTimedRecording: (id: string) =>
-    ['cameras', 'detail', id, 'timed-recording'] as const,
-  cameraTimedRecordingOptions: (id: string) =>
-    ['cameras', 'detail', id, 'timed-recording', 'options'] as const,
   recordings: ['recordings'] as const,
   recorderStatus: ['recordings', 'status'] as const,
 }

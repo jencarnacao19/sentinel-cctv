@@ -144,22 +144,6 @@ class Settings(BaseSettings):
     # --- Discovery -------------------------------------------------------
     enable_mdns: bool = True
 
-    # --- Experimental local battery cameras -----------------------------
-    enable_tapo_battery_provider: bool = False
-    """Expose the event-based Tapo battery-camera provider.
-
-    This feature never feeds go2rtc or the continuous recorder.  It only makes
-    explicit, on-demand LAN calls for telemetry, Direct Stream and event clips.
-    Keeping it behind a process flag lets an installation upgrade without a
-    firmware-sensitive provider contacting any device.
-    """
-
-    tapo_battery_live_max_seconds: int = Field(default=300, ge=30, le=1800)
-    """Hard ceiling for one on-demand Direct Stream session."""
-
-    tapo_battery_sync_max_clips: int = Field(default=20, ge=1, le=100)
-    """Maximum clips one manual sync may download from a camera."""
-
     # --- Runtime ---------------------------------------------------------
     log_level: str = "INFO"
     timezone: str = "UTC"

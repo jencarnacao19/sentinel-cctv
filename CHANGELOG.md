@@ -15,6 +15,16 @@ requirements are described in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
   `ghcr.io/jencarnacao19/sentinel-cctv` for `amd64` and `arm64`, and the quick
   start installs from that image instead of building from source.
 
+### Removed
+
+- **Tapo battery cameras (TC82/H200) are no longer in releases.** Their
+  development continues on the `dev` branch and its `:dev` image. A release
+  refuses to add one. A battery camera the dev build added stays in the
+  database untouched and is listed as not supported, so it can be removed, or
+  used again by going back to the dev build.
+  `SENTINEL_ENABLE_TAPO_BATTERY_PROVIDER`, `SENTINEL_TAPO_BATTERY_LIVE_MAX_SECONDS`
+  and `SENTINEL_TAPO_BATTERY_SYNC_MAX_CLIPS` are ignored.
+
 ### Security
 
 - **Live-stream and event sockets refuse other websites.** A browser's

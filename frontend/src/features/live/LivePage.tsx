@@ -1,4 +1,4 @@
-import { BatteryCharging, Plus, Radio, Video } from 'lucide-react'
+import { Plus, Video } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
@@ -7,7 +7,6 @@ import { EmptyState } from '@/components/EmptyState'
 import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Segmented } from '@/components/ui/segmented'
-import { TapoBatteryDialog } from '@/features/cameras/TapoBatteryDialog'
 import { useCameras } from '@/features/cameras/useCameras'
 import { CameraTile, CameraTileSkeleton } from '@/features/live/CameraTile'
 import { columnsFor, LAYOUT_OPTIONS, type Layout } from '@/features/live/layout'
@@ -36,10 +35,9 @@ export function LivePage() {
   const cameras = useCameras(true)
   const privacy = usePrivacyMode()
   const [layout, setLayout] = useState<Layout>('auto')
-  const [batteryCamera, setBatteryCamera] = useState<Camera | null>(null)
 
-  const list = cameras.data ?? []
-  const rtspCount = list.filter((camera) => camera.kind === 'rtsp').length
+  // A battery camera the dev build added has nothing to show in a release.
+  const list = (cameras.data ?? []).filter((camera) => camera.kind === 'rtsp')
   const columns = columnsFor(layout, list.length)
   const paused = privacy.data?.enabled === true
   // A pause with no stored reason must still pause. Reading the message
@@ -51,7 +49,7 @@ export function LivePage() {
 
   // A wall of cameras uses each one's substream: a dozen 2K decodes in one tab
   // would melt the browser, and at grid size nobody can see the difference.
-  const useSubstream = layout !== '1' && rtspCount > 1
+  const useSubstream = layout !== '1' && list.length > 1
 
   return (
     <div className="mx-auto max-w-[110rem] space-y-5">
@@ -85,47 +83,19 @@ export function LivePage() {
         </div>
       ) : list.length > 0 ? (
         <div className={cn('grid gap-3', columns)}>
-          {list.map((camera) =>
-            camera.kind === 'tapo_battery' ? (
-              <CameraTile key={camera.id} name={camera.name} meta="Tapo battery · on demand">
-                <button
-                  type="button"
-                  onClick={() => setBatteryCamera(camera)}
-                  disabled={paused}
-                  className={cn(
-                    'absolute inset-0 flex flex-col items-center justify-center gap-3 px-6',
-                    'bg-(--color-surface) text-center transition-colors',
-                    'hover:bg-(--color-surface-hover) disabled:cursor-not-allowed disabled:opacity-70',
-                  )}
-                >
-                  <span className="flex size-11 items-center justify-center rounded-full bg-(--color-bg-subtle) text-(--color-fg-muted)">
-                    <BatteryCharging className="size-5" aria-hidden="true" />
-                  </span>
-                  <span>
-                    <span className="block text-sm font-medium">
-                      {privacyMessage ?? 'Open Direct Stream'}
-                    </span>
-                    <span className="mt-1 flex items-center justify-center gap-1.5 text-xs text-(--color-fg-subtle)">
-                      <Radio className="size-3.5" aria-hidden="true" />
-                      No continuous connection
-                    </span>
-                  </span>
-                </button>
-              </CameraTile>
-            ) : (
-              <CameraTile key={camera.id} name={camera.name} meta={streamLabel(camera)}>
-                <VideoPlayer
-                  flush
-                  cameraId={camera.id}
-                  cameraName={camera.name}
-                  sub={useSubstream && Boolean(camera.sub_stream_url)}
-                  ptz={camera.ptz_supported === true}
-                  ptzZoom={camera.ptz_zoom_supported}
-                  privacyMessage={privacyMessage}
-                />
-              </CameraTile>
-            ),
-          )}
+          {list.map((camera) => (
+            <CameraTile key={camera.id} name={camera.name} meta={streamLabel(camera)}>
+              <VideoPlayer
+                flush
+                cameraId={camera.id}
+                cameraName={camera.name}
+                sub={useSubstream && Boolean(camera.sub_stream_url)}
+                ptz={camera.ptz_supported === true}
+                ptzZoom={camera.ptz_zoom_supported}
+                privacyMessage={privacyMessage}
+              />
+            </CameraTile>
+          ))}
         </div>
       ) : (
         <EmptyState
@@ -142,16 +112,6 @@ export function LivePage() {
           }
         />
       )}
-
-      {batteryCamera ? (
-        <TapoBatteryDialog
-          camera={batteryCamera}
-          open
-          onOpenChange={(next) => {
-            if (!next) setBatteryCamera(null)
-          }}
-        />
-      ) : null}
     </div>
   )
 }

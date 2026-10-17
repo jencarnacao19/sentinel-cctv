@@ -129,10 +129,18 @@ describe('recording state is visible without opening anything', () => {
     expect(chips).toEqual([])
   })
 
-  it('shows a battery camera as having no continuous recorder', () => {
+  it('shows a battery camera from the dev build as unsupported, with only removal offered', async () => {
     renderWithProviders(<CameraCard camera={batteryCamera} />)
     expect(screen.queryByRole('switch', { name: /^Recording/ })).not.toBeInTheDocument()
-    expect(screen.getByText(/records event clips and timed recordings only/i)).toBeInTheDocument()
+    expect(screen.getByText(/not supported in this release/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Configure' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Test' })).not.toBeInTheDocument()
+
+    const menu = await openOverflow(batteryCamera.name)
+    const items = within(menu)
+      .getAllByRole('menuitem')
+      .map((item) => item.textContent?.trim())
+    expect(items).toEqual(['Remove camera'])
   })
 })
 

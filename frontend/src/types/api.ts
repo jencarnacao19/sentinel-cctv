@@ -62,6 +62,7 @@ export type RecordingMode = 'continuous' | 'motion' | 'scheduled' | 'events' | '
 export type RecordingProfile = 'auto' | 'passthrough' | 'resilient' | 'normalised'
 export type RecordingSourceMode = 'auto' | 'relay' | 'direct'
 export type CameraStatus = 'online' | 'offline' | 'connecting' | 'error' | 'disabled'
+/** `tapo_battery` only comes from a camera the dev build added. */
 export type CameraKind = 'rtsp' | 'tapo_battery'
 
 /**
@@ -345,52 +346,6 @@ export interface RecordingSegment {
   status: SegmentStatus
 }
 
-export interface TapoBatteryChildDevice {
-  child_id: string
-  name?: string | null
-  model?: string | null
-}
-
-export interface TapoBatteryStatus {
-  ok: boolean
-  model: string | null
-  hardware_version: string | null
-  firmware_version: string | null
-  battery_percent: number | null
-  charging: boolean | null
-  charging_source: string | null
-  read_at: string
-  transport: 'local_lan'
-  continuous_recording: false
-  children?: TapoBatteryChildDevice[]
-}
-
-export interface TapoBatteryTestPayload {
-  host: string
-  password: string
-  username?: string | null
-  child_id?: string | null
-  hub?: boolean
-}
-
-export interface TapoBatteryClip {
-  external_id: string
-  started_at: string
-  ended_at: string
-  duration_seconds: number
-  event_type: string
-  imported: boolean
-  segment_id: string | null
-}
-
-export interface TapoBatterySyncResult {
-  discovered: number
-  imported: number
-  already_present: number
-  failed: number
-  segment_ids: string[]
-}
-
 export interface SegmentList {
   segments: RecordingSegment[]
   total: number
@@ -453,49 +408,4 @@ export interface HealthResponse {
   components: Record<string, HealthComponent>
   version: string
   uptime_seconds: number
-}
-
-/** A bounded, explicitly requested recording from a Tapo battery camera. */
-export type TimedRecordingState =
-  | 'starting'
-  | 'recording'
-  | 'reconnecting'
-  | 'stopping'
-  | 'completed'
-  | 'partial'
-  | 'failed'
-
-export type TimedRecordingStopReason =
-  | 'duration_reached'
-  | 'operator'
-  | 'privacy'
-  | 'shutdown'
-  | 'camera_unreachable'
-  | 'error'
-
-export interface TimedRecordingOptions {
-  presets_minutes: number[]
-  max_minutes: number
-  hard_max_minutes: number
-  min_minutes: number
-  battery_percent: number | null
-  warning: string
-}
-
-export interface TimedRecordingStatus {
-  camera_id: string
-  state: TimedRecordingState
-  requested_seconds: number
-  started_at: string
-  ends_at: string
-  seconds_remaining: number
-  seconds_recorded: number
-  bytes_recorded: number
-  connection: 'connecting' | 'connected' | 'reconnecting' | 'closed'
-  reconnects: number
-  battery_percent_at_start: number | null
-  message: string
-  stop_reason: TimedRecordingStopReason | null
-  segment_id: string | null
-  finished: boolean
 }

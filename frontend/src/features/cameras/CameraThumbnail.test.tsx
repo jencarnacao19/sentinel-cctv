@@ -77,7 +77,7 @@ describe('the fallback', () => {
   it('does not request a snapshot for a battery camera', () => {
     const { container } = renderWithProviders(<CameraThumbnail camera={batteryCamera} />)
     expect(container.querySelector('img')).toBeNull()
-    expect(screen.getByText('On demand only')).toBeInTheDocument()
+    expect(screen.getByText('Dev build only')).toBeInTheDocument()
   })
 
   it('does not request a snapshot while privacy mode is on', () => {

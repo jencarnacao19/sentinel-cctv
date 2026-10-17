@@ -26,8 +26,6 @@ from app import __version__
 from app.api import api_router
 from app.cameras import vendor_pool
 from app.cameras.ptz import get_manager as get_ptz_manager
-from app.cameras.tapo_battery import get_manager as get_tapo_battery_manager
-from app.cameras.tapo_timed import get_manager as get_timed_manager
 from app.config import Settings, get_settings
 from app.database.bootstrap import upgrade_to_head_async
 from app.database.session import check_database, dispose_engine, get_engine, session_scope
@@ -146,13 +144,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     reliability = get_reliability_monitor()
     await reliability.start()
 
-    # Started after storage is known and before the server accepts requests:
-    # its only start-up job is to finalise a timed battery recording that a
-    # previous run was interrupted in the middle of, so that footage reaches the
-    # timeline instead of sitting on disk as an orphaned part file.
-    timed = get_timed_manager()
-    await timed.start()
-
     # Announced last, and deliberately allowed to fail: on a network where
     # multicast does not work, nobody notices a missing mDNS record, but
     # everybody notices a server that refused to start.
@@ -180,14 +171,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await motion.stop()
         await recording.stop()
         await streaming.stop()
-        # Before the battery sessions are closed underneath it: stopping a timed
-        # recording remuxes and indexes whatever it captured, and it needs its
-        # camera session to still exist while it winds down.
-        await timed.stop()
-        from app.cameras.tapo_hls import battery_hls
-
-        await battery_hls.close_all()
-        await get_tapo_battery_manager().close_all()
         await ptz.stop()
         vendor_pool.shutdown()
         await dispose_engine()

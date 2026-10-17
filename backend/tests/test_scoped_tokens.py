@@ -65,7 +65,6 @@ async def test_tokens_cannot_administer_or_delete_footage(
         ("POST", "/cameras/test-stream"),
         ("PUT", "/cameras/missing/motion-zones"),
         ("POST", "/cameras/missing/tapo/reboot"),
-        ("PUT", "/cameras/tapo-battery/timed-recording/max-minutes"),
     ]
     for method, path in denied:
         response = await admin_client.request(method, f"/api/v1{path}", json={})
@@ -84,8 +83,6 @@ async def test_read_only_token_cannot_operate_cameras(admin_client: AsyncClient)
         ("POST", "/cameras/missing/tapo/privacy"),
         ("POST", "/cameras/missing/tapo/siren/start"),
         ("POST", "/cameras/missing/tapo/siren/stop"),
-        ("POST", "/cameras/missing/tapo-battery/timed-recording"),
-        ("DELETE", "/cameras/missing/tapo-battery/timed-recording"),
         ("PUT", "/system/privacy"),
     ]
     for method, path in denied:

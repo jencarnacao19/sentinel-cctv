@@ -54,7 +54,11 @@ class CameraKind(StrEnum):
 
     RTSP = "rtsp"
     TAPO_BATTERY = "tapo_battery"
-    """Event clips plus an on-demand proprietary LAN stream; never continuous."""
+    """Event clips plus an on-demand proprietary LAN stream; never continuous.
+
+    Only the dev build can add one. Releases keep the value so a database that
+    build wrote still loads, and leave such a camera untouched.
+    """
 
 
 class SegmentStatus(StrEnum):
@@ -78,8 +82,9 @@ class SegmentOrigin(StrEnum):
 
     CONTINUOUS = "continuous"
     TAPO_EVENT = "tapo_event"
+    """An event clip downloaded from a Tapo battery camera (dev build only)."""
     TAPO_MANUAL = "tapo_manual"
-    """A bounded, explicitly requested Tapo battery-camera recording."""
+    """A bounded, explicitly requested Tapo battery-camera recording (dev build only)."""
 
 
 class IncidentReason(StrEnum):
@@ -343,6 +348,7 @@ class Camera(Base):
     """Optional Tapo account password for LAN control. Encrypted and never returned."""
 
     tapo_child_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    """Optional child-device id when the battery camera is reached through a local hub."""
 
     tapo_controls_enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     """Administrator's explicit answer to "is this a Tapo camera?".
@@ -353,7 +359,6 @@ class Camera(Base):
     A camera's address is never part of that decision -- several unrelated
     channels routinely share one NVR host.
     """
-    """Optional child-device id when the battery camera is reached through a local hub."""
 
     onvif_device_xaddr: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     """ONVIF device service selected during discovery. Never contains credentials."""

@@ -1,5 +1,4 @@
 import {
-  BatteryCharging,
   Fingerprint,
   Loader2,
   MapPinned,
@@ -40,8 +39,6 @@ import { CameraThumbnail } from '@/features/cameras/CameraThumbnail'
 import { EditCameraDialog } from '@/features/cameras/EditCameraDialog'
 import { PtzSetupDialog } from '@/features/cameras/PtzSetupDialog'
 import { RecordingToggle } from '@/features/cameras/RecordingToggle'
-import { TapoBatteryConfigureDialog } from '@/features/cameras/TapoBatteryConfigureDialog'
-import { TapoBatteryDialog } from '@/features/cameras/TapoBatteryDialog'
 import { TapoLocalControlsDialog } from '@/features/cameras/TapoLocalControlsDialog'
 import { useIdentifyCamera } from '@/features/cameras/useCameraRecording'
 import { useDeleteCamera, useDetectPtz, useTestCamera } from '@/features/cameras/useCameras'
@@ -82,8 +79,9 @@ export function CameraCard({ camera, privacyMessage }: Props) {
   const [editing, setEditing] = useState(false)
   const [ptzSetupOpen, setPtzSetupOpen] = useState(false)
   const [tapoControlsOpen, setTapoControlsOpen] = useState(false)
-  const [batteryOpen, setBatteryOpen] = useState(false)
 
+  // A battery camera the dev build added. A release keeps it as it was and
+  // offers nothing but removing it.
   const battery = camera.kind === 'tapo_battery'
   const paused = Boolean(privacyMessage)
   const tapo = camera.tapo_controls
@@ -150,9 +148,8 @@ export function CameraCard({ camera, privacyMessage }: Props) {
 
             {/* Capabilities, not statuses. Kept visually lighter than the state
                 above so a camera with PTZ never reads as a camera with a fault. */}
-            {battery || camera.ptz_supported === true || camera.onvif_patrol_enabled ? (
+            {camera.ptz_supported === true || camera.onvif_patrol_enabled ? (
               <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                {battery ? <Badge variant="outline">Event clips</Badge> : null}
                 {camera.ptz_supported === true ? <Badge variant="outline">PTZ</Badge> : null}
                 {camera.onvif_patrol_enabled ? <Badge variant="outline">Local patrol</Badge> : null}
               </div>
@@ -186,7 +183,7 @@ export function CameraCard({ camera, privacyMessage }: Props) {
         <div className="flex shrink-0 flex-col gap-2.5 border-t border-(--color-border) pt-3 lg:items-end lg:border-t-0 lg:pt-0">
           {battery ? (
             <p className="text-xs leading-4 text-(--color-fg-muted) lg:max-w-64 lg:text-right">
-              Records event clips and timed recordings only.
+              Battery cameras are not supported in this release. This one works on the dev build.
             </p>
           ) : (
             <RecordingToggle
@@ -199,12 +196,7 @@ export function CameraCard({ camera, privacyMessage }: Props) {
           )}
 
           <div className="flex flex-wrap items-center gap-2">
-            {battery ? (
-              <Button variant="secondary" size="sm" onClick={() => setBatteryOpen(true)} disabled={paused}>
-                <BatteryCharging aria-hidden="true" />
-                Battery camera
-              </Button>
-            ) : (
+            {!battery ? (
               <>
                 <Button variant="secondary" size="sm" onClick={() => setEditing(true)}>
                   <Settings2 aria-hidden="true" />
@@ -221,7 +213,7 @@ export function CameraCard({ camera, privacyMessage }: Props) {
                   Test
                 </Button>
               </>
-            )}
+            ) : null}
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -266,13 +258,6 @@ export function CameraCard({ camera, privacyMessage }: Props) {
                   <DropdownMenuItem onSelect={() => setPtzSetupOpen(true)} disabled={paused}>
                     <MapPinned aria-hidden="true" />
                     Positions &amp; patrol
-                  </DropdownMenuItem>
-                ) : null}
-
-                {battery ? (
-                  <DropdownMenuItem onSelect={() => setEditing(true)}>
-                    <Settings2 aria-hidden="true" />
-                    Configure
                   </DropdownMenuItem>
                 ) : null}
 
@@ -324,11 +309,9 @@ export function CameraCard({ camera, privacyMessage }: Props) {
         </DialogContent>
       </Dialog>
 
-      {battery ? (
-        <TapoBatteryConfigureDialog camera={camera} open={editing} onOpenChange={setEditing} />
-      ) : (
+      {!battery ? (
         <EditCameraDialog camera={camera} open={editing} onOpenChange={setEditing} />
-      )}
+      ) : null}
       {camera.ptz_supported === true ? (
         <PtzSetupDialog camera={camera} open={ptzSetupOpen} onOpenChange={setPtzSetupOpen} />
       ) : null}
@@ -338,9 +321,6 @@ export function CameraCard({ camera, privacyMessage }: Props) {
           open={tapoControlsOpen}
           onOpenChange={setTapoControlsOpen}
         />
-      ) : null}
-      {battery ? (
-        <TapoBatteryDialog camera={camera} open={batteryOpen} onOpenChange={setBatteryOpen} />
       ) : null}
     </Card>
   )

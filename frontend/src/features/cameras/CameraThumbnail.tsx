@@ -62,11 +62,7 @@ export function CameraThumbnail({ camera, privacyMessage, className }: Props) {
       {privacyMessage ? (
         <Placeholder icon={<EyeOff aria-hidden="true" />} label="Paused for privacy" warning />
       ) : camera.kind === 'tapo_battery' ? (
-        <Placeholder
-          icon={<BatteryCharging aria-hidden="true" />}
-          label="On demand only"
-          accent
-        />
+        <Placeholder icon={<BatteryCharging aria-hidden="true" />} label="Dev build only" />
       ) : showSnapshot && !failed ? (
         <img
           // The key restarts the element when the URL changes, so a retry after

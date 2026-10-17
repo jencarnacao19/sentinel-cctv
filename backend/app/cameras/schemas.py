@@ -169,31 +169,14 @@ class CameraCreate(CameraBase):
             _validate_url(self.main_stream_url, "main_stream_url")
             _validate_url(self.sub_stream_url, "sub_stream_url")
             if self.host is not None or self.tapo_child_id is not None:
-                raise ValueError("host and tapo_child_id are only for Tapo battery cameras.")
+                raise ValueError(
+                    "An RTSP camera's host comes from its stream URL and cannot be set separately."
+                )
         else:
-            if not self.host:
-                raise ValueError("host is required for a Tapo battery camera or its local hub.")
-            if not self.tapo_password:
-                raise ValueError("tapo_password is required for a Tapo battery camera.")
-            # Tapo battery cameras default to "admin" for local Third-Party Compatibility,
-            # or can accept a Tapo cloud account email / username when Third-Party
-            # Compatibility is off. Normalize empty string to None.
-            if self.username is not None:
-                cleaned = self.username.strip()
-                self.username = cleaned if cleaned else None
-            if (
-                self.main_stream_url
-                or self.sub_stream_url
-                or self.onvif_device_xaddr
-                or self.onvif_profile_token
-            ):
-                raise ValueError("A Tapo battery camera must not be given an RTSP or ONVIF URL.")
-            if self.password:
-                raise ValueError("Use tapo_password for a Tapo battery camera.")
-            if self.tapo_patrol_mode:
-                raise ValueError("Tapo battery cameras do not support continuous patrol.")
-            self.recording_mode = RecordingMode.EVENTS
-            self.motion_enabled = False
+            raise ValueError(
+                "Tapo battery cameras are not supported in this release. They are being "
+                "developed on Sentinel's dev build."
+            )
         self.onvif_device_xaddr = _validate_onvif_xaddr(self.onvif_device_xaddr)
         return self
 

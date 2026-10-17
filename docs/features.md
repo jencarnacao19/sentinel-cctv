@@ -62,11 +62,7 @@ still shown and the panel says how many checks were missed — one awkward
 firmware method does not cost you the whole panel.
 
 The **Camera Account** created in the Tapo app remains the credential for
-RTSP/ONVIF on compatible mains-powered cameras. TC82/H200 battery cameras do
-not expose that account or RTSP/ONVIF, so their separate add-camera flow asks
-whether the address belongs to a standalone TC82 or an H200. Standalone media
-keeps the fixed `admin` username internal; an optional local username appears
-only for hub firmware that requires it.
+RTSP/ONVIF on compatible mains-powered cameras.
 
 The control plane is local-first by construction: RTSP recording, ONVIF PTZ,
 presets and native tours never call an external service. Optional remote/cloud
@@ -88,26 +84,15 @@ carry on unchanged. Recordings already on disk are kept. The setting survives a
 restart, and the camera's recording profile, source and segment length are left
 exactly as they were, so turning it back on resumes with the same configuration.
 
-## Tapo battery cameras (experimental)
+## Tapo battery cameras
 
-TC82-class battery cameras do not expose RTSP or ONVIF and therefore are not
-added to Sentinel's continuous pipeline. Set
-`SENTINEL_ENABLE_TAPO_BATTERY_PROVIDER=true`, restart Sentinel, then choose
-**Cameras → Add manually → Tapo battery**. Use **Test connection** before saving.
-Choose **Standalone TC82** for the camera's own private address, or **H200 hub**
-when the address belongs to the hub and select its discovered child camera. The
-standalone flow never asks for an account email.
+Battery cameras such as the Tapo TC82 are not part of releases. They are being
+developed on the `dev` branch, published as the image
+`ghcr.io/jencarnacao19/sentinel-cctv:dev`, which is meant for test servers only.
 
-The provider reads battery state over the LAN, opens one time-limited Direct
-Stream only when an administrator requests it, and manually imports recent
-camera-owned event clips into the normal timeline. It never registers the
-camera with go2rtc, starts FFmpeg recording/motion analysis, or needs Internet
-access while operating. The protected Home Assistant viewer can play imported
-events; it deliberately does not keep a battery-camera live session open.
-
-Firmware and hub behaviour vary, so a real-device test remains mandatory. See
-[`docs/TC82_LOCAL_PROVIDER.md`](TC82_LOCAL_PROVIDER.md) for the exact
-boundaries and validation checklist.
+If you added a battery camera with the dev build and go back to a release, the
+camera stays in the database: the **Cameras** page lists it as not supported in
+this release and offers only to remove it.
 
 ## Privacy mode
 
