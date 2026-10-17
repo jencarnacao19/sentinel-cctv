@@ -9,11 +9,44 @@ requirements are described in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-17
+
+A major version because two changes can break an existing set-up: the
+motion-zones API has a new format, and Tapo battery cameras leave releases for
+the dev build.
+
 ### Added
 
+- **Named motion zones.** On **Motion zones**, each area is now a detection
+  zone or an ignored area. A detection zone has a name and can have its own
+  sensitivity, and once a camera has one, only motion inside its detection zones
+  counts. Detection still runs on the CPU with one background model per camera,
+  however many zones it has. Motion events record the zones they touched.
+- **A Home Assistant motion sensor per zone.** Each detection zone appears as
+  `binary_sensor.<camera>_<zone>_motion`, pushed the moment it changes, and
+  fires `sentinel_zone_motion_started` and `sentinel_zone_motion_ended`.
+  Renaming a zone keeps its entity.
+- **Move to another machine.** **Settings → Move to another machine** exports
+  every camera, its zones and the recording settings to one YAML file and
+  imports it on another server. Camera passwords are left out unless you set a
+  passphrase; then they are encrypted with AES-256-GCM under a key derived from
+  it with scrypt. Importing only adds, and skips a storage policy that could
+  delete footage on the new machine.
 - **Ready-to-run server images.** Each release now publishes
   `ghcr.io/jencarnacao19/sentinel-cctv` for `amd64` and `arm64`, and the quick
   start installs from that image instead of building from source.
+- **A dev image for work in progress.** Every push to the `dev` branch publishes
+  `ghcr.io/jencarnacao19/sentinel-cctv:dev` for `amd64`, for test servers only.
+
+### Changed
+
+- **The motion-zones API has a new format (breaking).**
+  `/api/v1/cameras/{id}/motion-zones` now exchanges `{"zones": [...]}` with zone
+  objects (`id`, `name`, `kind`, `enabled`, `sensitivity`, `points`) instead of
+  a bare list of polygons. Zones saved by earlier versions were areas to ignore
+  and load as `ignore` zones.
+- Motion events, the realtime event stream and the Home Assistant contract
+  carry the zones involved.
 
 ### Removed
 
@@ -486,5 +519,6 @@ requirements are described in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
   mypy, pytest, eslint, tsc, vitest, the production build and an image build
   gated on the container actually reporting healthy.
 
-[Unreleased]: https://github.com/jencarnacao19/sentinel-cctv/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/jencarnacao19/sentinel-cctv/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/jencarnacao19/sentinel-cctv/compare/v0.1.0...v2.0.0
 [0.1.0]: https://github.com/jencarnacao19/sentinel-cctv/releases/tag/v0.1.0

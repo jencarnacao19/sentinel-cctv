@@ -19,6 +19,7 @@ One device per camera, with:
 | --- | --- |
 | `camera.<name>` | Snapshots served by Sentinel |
 | `binary_sensor.<name>_motion` | On the instant motion starts — pushed, not polled |
+| `binary_sensor.<name>_<zone>_motion` | One per detection zone, on while that zone sees motion |
 | `sensor.<name>_recording` | `recording`, `idle`, `off` or `unavailable` |
 | `sensor.<name>_bitrate` | Current stream bitrate |
 | `sensor.<name>_motion_events_total` | Lifetime motion event count |
@@ -28,7 +29,13 @@ Plus one device for the server itself: storage used, storage free, recordings
 size, retention period, and how many cameras are online.
 
 Motion also fires `sentinel_motion_started` and `sentinel_motion_ended` on the
-Home Assistant event bus, if you would rather trigger on those.
+Home Assistant event bus, if you would rather trigger on those. Detection zones
+fire `sentinel_zone_motion_started` and `sentinel_zone_motion_ended`, with
+`camera_id`, `camera_name`, `zone_id` and `zone_name`.
+
+Zone sensors follow the zones you draw on **Motion zones** in Sentinel: a new
+detection zone appears on the next refresh, a renamed one keeps its entity,
+and a deleted one becomes unavailable.
 
 ## Requirements
 
@@ -152,6 +159,9 @@ actions:
       data:
         entity_id: camera.front_door
 ```
+
+To react to one area only, use that zone's sensor instead, for example
+`binary_sensor.front_door_gate_motion`.
 
 The integration does not send notifications itself. Home Assistant already does
 that better than a CCTV server could, and it already knows about your phones,

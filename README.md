@@ -12,7 +12,7 @@ integration. Runs on a small home server without a GPU.
 
 ---
 
-> **Early development (`0.1.0`).** Test it with your own cameras and storage
+> **Early development (`2.0.0`).** Test it with your own cameras and storage
 > before relying on it. [`PROJECT_STATUS.md`](PROJECT_STATUS.md) lists what
 > works today and what does not yet.
 
@@ -66,7 +66,11 @@ a recording switch. More in the [Home Assistant guide](docs/home-assistant.md).
 
 - **Records continuously** without re-encoding the video, so ten cameras run
   comfortably on a 4-core home server. No GPU needed.
-- **Detects motion** and marks it on a searchable timeline with playback.
+- **Detects motion** on the CPU and marks it on a searchable timeline with
+  playback. Named zones each get their own sensitivity and Home Assistant
+  sensor, and areas you mark as ignored never trigger.
+- **Moves to a new machine** with one YAML file holding every camera, zone
+  and setting. Camera passwords go in only if you set a passphrase.
 - **Manages storage** with retention rules and permanent saved clips.
 - **Controls cameras**: ONVIF pan/tilt/zoom and presets, plus a privacy mode
   that pauses every camera.
@@ -96,7 +100,7 @@ a recording switch. More in the [Home Assistant guide](docs/home-assistant.md).
 
 | Guide | What is in it |
 | --- | --- |
-| [Using Sentinel](docs/features.md) | PTZ, recording switch, privacy mode, timeline, saved clips |
+| [Using Sentinel](docs/features.md) | PTZ, recording switch, motion zones, moving machines, privacy mode, timeline, saved clips |
 | [Home Assistant](docs/home-assistant.md) | Integration, dashboard and troubleshooting |
 | [Proxmox](docs/private-proxmox.md) | Building and running Sentinel in a Proxmox LXC |
 | [Remote access](docs/remote-access.md) | Footage console, Cloudflare Access and the embedded viewer |

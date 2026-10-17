@@ -84,6 +84,44 @@ carry on unchanged. Recordings already on disk are kept. The setting survives a
 restart, and the camera's recording profile, source and segment length are left
 exactly as they were, so turning it back on resumes with the same configuration.
 
+## Motion zones
+
+**Motion zones** lets you draw areas on each camera's picture. Detection runs on
+the server's CPU, on the camera's low-resolution substream, so zones need no GPU.
+
+A zone is one of two kinds:
+
+- A **detection zone** has a name and reports motion on its own. In Home
+  Assistant each one is a separate motion sensor, so an automation can react to
+  the gate without reacting to the street. Once a camera has a detection zone,
+  only motion inside its detection zones counts.
+- An **ignored area** never triggers: a tree in the wind, a road, a neighbour's
+  window.
+
+A detection zone follows the camera's sensitivity unless you give it its own.
+A camera can have up to 32 zones, 16 of them detection zones. Zones drawn
+before 2.0 were all areas to ignore, and they keep working as ignored areas.
+
+## Moving Sentinel to another machine
+
+**Settings → Move to another machine** downloads one YAML file with every
+camera, its motion zones and the recording settings. Import the file in the same
+place on the new Sentinel. Recordings, users and API tokens are not in the file;
+they stay on the old machine.
+
+Camera passwords are your choice:
+
+- **Without passwords** the file holds no secrets. After importing, open each
+  camera's **Configure** and type its password again.
+- **With passwords** you pick a passphrase of at least 8 characters, and every
+  password in the file is encrypted with it. The new machine asks for the same
+  passphrase. A forgotten passphrase cannot be recovered; export again without
+  passwords instead.
+
+Importing only adds. A camera whose name already exists is skipped, and a
+storage policy that could delete footage on the new machine is not applied.
+The result lists what was added and what was skipped, and why.
+
 ## Tapo battery cameras
 
 Battery cameras such as the Tapo TC82 are not part of releases. They are being

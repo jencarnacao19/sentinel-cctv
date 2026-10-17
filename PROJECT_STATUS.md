@@ -1,6 +1,6 @@
 # Sentinel CCTV — project status
 
-Sentinel is an early-development (`0.1.0`) local video recorder for RTSP
+Sentinel is an early-development (`2.0.0`) local video recorder for RTSP
 cameras. Deployments should be validated with the cameras, storage and browsers
 that will actually be used. Automated tests do not establish compatibility with
 every device or firmware version.
@@ -11,8 +11,11 @@ every device or firmware version.
   automatic segment indexing and per-camera recording controls.
 - A shared go2rtc relay for live viewing and motion analysis, with a per-camera
   recorder fallback for streams that cannot initialise through the relay.
-- OpenCV motion detection, ignore zones, event snapshots and a searchable
-  timeline with playback, downloads and permanent saved clips.
+- OpenCV motion detection with named detection zones and ignored areas, event
+  snapshots and a searchable timeline with playback, downloads and permanent
+  saved clips.
+- Moving cameras, zones and settings to another machine with one YAML file,
+  with camera passwords optionally encrypted under a passphrase.
 - Storage monitoring, retention policies and previews, protected footage and
   safeguards against recording onto an unavailable storage mount.
 - Local administrator accounts, scoped integration tokens, encrypted camera

@@ -55,6 +55,8 @@ separate, restricted `CurrentViewer` guard described below.
 | POST | `/system/backup` | admin | Configuration backup (no recordings, no camera passwords) as a `.zip`. |
 | POST | `/system/backup/inspect` | admin | Describe an uploaded backup without applying it. |
 | POST | `/system/backup/restore` | admin | Replace the configuration database; requires a restart afterwards. |
+| POST | `/system/config/export` | admin | Body `{"include_passwords": bool, "passphrase": str \| null}`. Returns `sentinel-config.yaml`: cameras, motion zones and recording settings for moving to another machine. Passwords are included only with a passphrase of at least 8 characters, encrypted with AES-256-GCM under a scrypt key. |
+| POST | `/system/config/import` | admin | Multipart `file` and optional `passphrase`. Adds the cameras the file describes, skipping names that exist, and applies its settings except a storage policy that could delete footage here. Returns what was added and skipped, and why. |
 
 ### Auth (`backend/app/auth/router.py`, prefix `/auth`)
 
@@ -151,9 +153,21 @@ configuration or credentials.
 
 | Method | Path | Auth | Notes |
 | --- | --- | --- | --- |
-| GET | `/cameras/{id}/motion-zones` | any | Currently ignored polygons for this camera. |
-| PUT | `/cameras/{id}/motion-zones` | admin | Replaces the zone list wholesale; restarts the camera's motion worker. |
+| GET | `/cameras/{id}/motion-zones` | any | `{"camera_id", "zones": [...]}` for this camera. |
+| PUT | `/cameras/{id}/motion-zones` | admin | Body `{"zones": [...]}`. Replaces the zone list wholesale; restarts the camera's motion worker. |
 | GET | `/cameras/{id}/motion-preview` | admin | A JPEG frame used by the **Motion zones** editor. |
+
+A zone is `{"id", "name", "kind", "enabled", "sensitivity", "points"}`. `kind`
+is `detect` or `ignore`. `points` holds 3–128 `[x, y]` pairs normalised to
+`0`–`1`. `sensitivity` (`0`–`100`) applies to `detect` zones only; `null` uses
+the camera's. Leave `id` out of a new zone and the server assigns one; keep it
+on an existing zone so its Home Assistant sensor survives a rename. A camera
+has at most 32 zones, 16 of them `detect`, and zone names must differ.
+
+When a camera has `detect` zones, only motion inside them counts, and each zone
+reports its own motion as `motion.zone_started` and `motion.zone_ended` on the
+event stream. Motion events list the zones they touched in `zones`. Before 2.0
+this API took a bare list of polygons; zones saved then load as `ignore`.
 
 ### Live streams (`backend/app/streaming/router.py`, prefix `/streams`)
 
@@ -484,7 +498,7 @@ curl https://sentinel.example.lan/api/v1/system/health
     "recording": { "state": "ok", "data": { "expected": 3, "running": 3 } },
     "motion": { "state": "ok", "data": { "expected": 2, "running": 2 } }
   },
-  "version": "0.1.0",
+  "version": "2.0.0",
   "uptime_seconds": 154302.9
 }
 ```

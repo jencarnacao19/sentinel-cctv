@@ -105,7 +105,7 @@ Authorization: Bearer sctv_xxx
 {
   "unique_id": "0123456789abcdef0123456789abcdef",
   "name": "Sentinel CCTV",
-  "version": "0.1.0",
+  "version": "2.0.0",
   "api_version": 1,
   "websocket_path": "/api/v1/events/stream",
   "cameras": [
