@@ -5,7 +5,9 @@
 # one log stream and no inter-service networking for a home user to debug.
 
 # --- Stage 1: build the web interface ----------------------------------------
-FROM node:22-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5 AS web
+# The compiled interface is plain static files, so this stage always runs on the
+# build machine's own platform, even when the image is built for another one.
+FROM --platform=$BUILDPLATFORM node:22-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5 AS web
 
 WORKDIR /build
 COPY frontend/package.json frontend/package-lock.json* ./
