@@ -143,11 +143,16 @@ class TestLifecycle:
                 await asyncio.sleep(0.05)
             first_pid = process.status()["pid"]
             await process.restart()
+            # Right after the old process exits, state still reads RUNNING and the pid is
+            # None until the loop notices; only a new pid means the restart happened.
             for _ in range(100):
-                if process.state is ProcessState.RUNNING and process.status()["pid"] != first_pid:
+                if process.state is ProcessState.RUNNING and process.status()["pid"] not in (
+                    None,
+                    first_pid,
+                ):
                     break
                 await asyncio.sleep(0.05)
-            assert process.status()["pid"] != first_pid
+            assert process.status()["pid"] not in (None, first_pid)
             assert process.restart_count == 0
             assert process.last_exit_expected is True
             assert process.consecutive_failures == 0

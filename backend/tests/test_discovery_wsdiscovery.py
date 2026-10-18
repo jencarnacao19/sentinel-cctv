@@ -338,7 +338,9 @@ class TestDiscover:
                 ]
             return []
 
-        monkeypatch.setattr(wsdiscovery, "list_probe_sources", lambda: ["192.168.50.5", "10.10.0.5"])
+        monkeypatch.setattr(
+            wsdiscovery, "list_probe_sources", lambda: ["192.168.50.5", "10.10.0.5"]
+        )
         monkeypatch.setattr(wsdiscovery, "probe_from_source", fake_probe)
 
         result = await wsdiscovery.discover(timeout_seconds=1.0)
@@ -377,7 +379,9 @@ class TestDiscover:
             del timeout_seconds
             if source == "bad-if":
                 raise OSError("interface vanished mid-scan")
-            return [ProbeMatch(endpoint="urn:uuid:ok", xaddrs=("http://192.168.50.9/x",), scopes=())]
+            return [
+                ProbeMatch(endpoint="urn:uuid:ok", xaddrs=("http://192.168.50.9/x",), scopes=())
+            ]
 
         monkeypatch.setattr(wsdiscovery, "list_probe_sources", lambda: ["bad-if", "192.168.50.9"])
         monkeypatch.setattr(wsdiscovery, "probe_from_source", fake_probe)

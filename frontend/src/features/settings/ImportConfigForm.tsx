@@ -8,7 +8,8 @@ import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { errorText, failure, type ImportSummary } from '@/features/settings/transfer'
+import { failure, type ImportSummary } from '@/features/settings/transfer'
+import { errorText } from '@/lib/errors'
 
 /**
  * Add the cameras and settings from a file exported on another Sentinel.

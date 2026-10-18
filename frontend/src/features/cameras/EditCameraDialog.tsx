@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 
-import { ApiError, NetworkError } from '@/api/client'
 import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { CheckboxField } from '@/components/ui/checkbox'
@@ -27,18 +26,14 @@ import type {
   RecordingSourceMode,
   TapoPatrolMode,
 } from '@/types/api'
+import { errorText } from '@/lib/errors'
+
+const FAILED = 'The camera settings could not be saved.'
 
 interface Props {
   camera: Camera
   open: boolean
   onOpenChange: (open: boolean) => void
-}
-
-function errorText(error: unknown): string | null {
-  if (error instanceof NetworkError) return 'Could not reach the Sentinel server.'
-  if (error instanceof ApiError) return error.message
-  if (error) return 'The camera settings could not be saved.'
-  return null
 }
 
 /**
@@ -523,8 +518,8 @@ export function EditCameraDialog({ camera, open, onOpenChange }: Props) {
               </FormDisclosure>
             ) : null}
 
-            {errorText(update.error) ? (
-              <Alert variant="danger">{errorText(update.error)}</Alert>
+            {errorText(update.error, FAILED) ? (
+              <Alert variant="danger">{errorText(update.error, FAILED)}</Alert>
             ) : null}
           </DialogBody>
 

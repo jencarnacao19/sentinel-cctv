@@ -18,6 +18,7 @@ from typing import Any
 import pytest
 from httpx import AsyncClient
 
+from app.cameras import tapo
 from app.cameras.vendor import TapoControlSource, classify_tapo_controls
 from app.database.models import Camera, CameraKind
 
@@ -95,7 +96,9 @@ class TestPositiveIdentification:
         assert result.source is TapoControlSource.METADATA
 
     def test_a_battery_camera_from_the_dev_build_is_offered_no_controls(self) -> None:
-        result = classify_tapo_controls(_camera(kind=CameraKind.TAPO_BATTERY, host="192.168.50.220"))
+        result = classify_tapo_controls(
+            _camera(kind=CameraKind.TAPO_BATTERY, host="192.168.50.220")
+        )
         assert not result.supported
         assert result.source is TapoControlSource.KIND
         assert result.reason == "Tapo battery cameras are not supported in this release."
@@ -226,8 +229,14 @@ class TestApiSurface:
         assert reloaded["tapo_controls"]["source"] == "other_vendor"
 
     async def test_an_unknown_camera_is_refused_until_an_administrator_opts_in(
-        self, admin_client: AsyncClient
+        self, admin_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        def no_camera_here(target: object) -> object:
+            # Never the network: the address in this test can be a real device
+            # on whatever network the suite happens to run on.
+            raise OSError("no camera in a test run")
+
+        monkeypatch.setattr(tapo, "_connect", no_camera_here)
         created = (await admin_client.post("/api/v1/cameras", json=UNKNOWN_CAMERA)).json()
         refused = await admin_client.get(f"/api/v1/cameras/{created['id']}/tapo/capabilities")
         assert refused.status_code == 409
@@ -239,7 +248,6 @@ class TestApiSurface:
         assert updated.json()["tapo_controls"]["supported"] is True
         assert updated.json()["tapo_controls"]["source"] == "manual"
 
-        # Now it is allowed through the gate and fails on its own merits --
-        # there is no camera at that address in a test run.
+        # Now it is allowed through the gate and fails on its own merits.
         allowed = await admin_client.get(f"/api/v1/cameras/{created['id']}/tapo/capabilities")
         assert allowed.status_code != 409

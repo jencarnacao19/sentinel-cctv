@@ -19,7 +19,8 @@ import { CheckboxField } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ImportConfigForm } from '@/features/settings/ImportConfigForm'
-import { errorText, failure } from '@/features/settings/transfer'
+import { failure } from '@/features/settings/transfer'
+import { errorText } from '@/lib/errors'
 
 const MIN_PASSPHRASE_LENGTH = 8
 

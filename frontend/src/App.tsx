@@ -85,8 +85,10 @@ function SetupRoute() {
   if (status.isPending || user.isPending) return <FullPageSpinner />
   if (!status.data?.initialised) return <SetupPage />
   if (!user.data) return <Navigate to="/admin/login" replace state={{ from: '/setup' }} />
-  if (!user.data.is_admin) return <Navigate to="/" replace />
-  if (status.data.setup_completed) return <Navigate to="/admin" replace />
+  // A finished setup always ends on the camera wall. It must not go to /admin:
+  // the wizard's own last step leaves for "/" as a low-priority transition,
+  // and this redirect can win that race when the server answers quickly.
+  if (!user.data.is_admin || status.data.setup_completed) return <Navigate to="/" replace />
   return <SetupWizard />
 }
 

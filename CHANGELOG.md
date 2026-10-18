@@ -9,7 +9,7 @@ requirements are described in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 
 ## [Unreleased]
 
-## [2.0.0] - 2026-10-17
+## [2.0.0] - 2026-10-18
 
 A major version because two changes can break an existing set-up: the
 motion-zones API has a new format, and Tapo battery cameras leave releases for
@@ -75,6 +75,18 @@ the dev build.
   used again by going back to the dev build.
   `SENTINEL_ENABLE_TAPO_BATTERY_PROVIDER`, `SENTINEL_TAPO_BATTERY_LIVE_MAX_SECONDS`
   and `SENTINEL_TAPO_BATTERY_SYNC_MAX_CLIPS` are ignored.
+- `SENTINEL_TIMEZONE`, which nothing read. `TZ` still sets the time in the log;
+  recordings are always stored in UTC.
+
+### Fixed
+
+- **A camera's own retention period now applies when the global one is
+  unlimited.** Its recordings and motion events stayed until a size or
+  free-space limit removed them.
+- **A saved clip can no longer use the space kept free for recording.** Saved
+  clips are never deleted by retention, so a clip that would cross that reserve
+  is refused with a message, instead of retention deleting ordinary footage to
+  make room for it.
 
 ### Security
 

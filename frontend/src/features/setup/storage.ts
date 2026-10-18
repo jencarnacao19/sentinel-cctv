@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 
-import { api } from '@/api/client'
+import { api, ApiError } from '@/api/client'
 import type { StoragePolicyPreview, StorageSettings, StorageUsage } from '@/features/storage/types'
 
 export const RETENTION_CHOICES = ['7', '14', '30', '60', '90'] as const
@@ -31,7 +31,8 @@ export async function applyRetention(days: number, current: number | null): Prom
     retention_days: days,
   })
   if (preview.expired_segment_count > 0) {
-    throw new Error(
+    throw new ApiError(
+      409,
       `Keeping ${days} days would delete ${preview.expired_segment_count} existing recordings. ` +
         'Change it on the Storage page, where the deletion can be reviewed.',
     )

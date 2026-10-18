@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { KeyRound, Trash2, UserPlus } from 'lucide-react'
 import { useState } from 'react'
 
-import { ApiError, NetworkError } from '@/api/client'
 import { authApi, queryKeys } from '@/api/endpoints'
 import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -10,15 +9,9 @@ import { FormField } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { User } from '@/types/api'
+import { errorText } from '@/lib/errors'
 
 const MIN_PASSWORD_LENGTH = 10
-
-function errorText(error: unknown, fallback: string): string | null {
-  if (!error) return null
-  if (error instanceof NetworkError) return 'Could not reach the Sentinel server.'
-  if (error instanceof ApiError) return error.message
-  return fallback
-}
 
 function passwordProblem(password: string, confirmation: string): string | null {
   if (password.length < MIN_PASSWORD_LENGTH) return `Use at least ${MIN_PASSWORD_LENGTH} characters.`

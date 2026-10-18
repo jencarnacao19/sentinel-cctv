@@ -37,7 +37,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
-import { ApiError, NetworkError } from '@/api/client'
+import { ApiError } from '@/api/client'
 import { EmptyState } from '@/components/EmptyState'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Alert } from '@/components/ui/alert'
@@ -67,16 +67,11 @@ import { useViewerCameras } from '@/features/viewer/useViewerCameras'
 import { downloadViewerExport } from '@/features/viewer/access'
 import { ViewerSystemStrip } from '@/features/viewer/ViewerSystemStrip'
 import { cn, formatBytes } from '@/lib/utils'
+import { errorText } from '@/lib/errors'
 
 /** The window the page opens on: the last six hours, which is short enough
  *  that individual events are still distinguishable at a glance. */
 const INITIAL_WINDOW_SECONDS = 6 * 3600
-
-function errorText(error: unknown): string {
-  if (error instanceof NetworkError) return 'Could not reach the Sentinel server.'
-  if (error instanceof ApiError) return error.message
-  return 'Something went wrong.'
-}
 
 function initialWindow(): TimeWindow {
   const end = new Date()

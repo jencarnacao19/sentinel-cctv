@@ -222,6 +222,19 @@ class TestAgeBasedPruning:
         assert await _events_remaining() == 1
         assert await _event_paths(event_id) == (None, None)
 
+    async def test_a_cameras_own_period_applies_to_events_without_a_global_one(
+        self, app: object, settings: Settings
+    ) -> None:
+        limited = await _camera("Limited", retention_days=3)
+        unlimited = await _camera("Unlimited")
+        await _event(settings, limited, age_days=5)
+        await _event(settings, unlimited, age_days=5)
+
+        result = await _sweep(settings, retention_days=None)
+
+        assert result.events_deleted == 1
+        assert await _events_remaining() == 1
+
     async def test_an_event_whose_files_are_already_gone_is_still_pruned(
         self, app: object, settings: Settings
     ) -> None:

@@ -1,7 +1,7 @@
 import { Clock3, Download, Film, ShieldCheck, Trash2 } from 'lucide-react'
 import { useMemo } from 'react'
 
-import { API_BASE, ApiError, NetworkError } from '@/api/client'
+import { API_BASE } from '@/api/client'
 import { EmptyState } from '@/components/EmptyState'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Alert } from '@/components/ui/alert'
@@ -12,6 +12,7 @@ import { useCameras } from '@/features/cameras/useCameras'
 import { isExportActive, type ExportJob } from '@/features/timeline/types'
 import { useDeleteExport, useExports, useUpdateExport } from '@/features/timeline/useTimeline'
 import { formatBytes } from '@/lib/utils'
+import { errorText } from '@/lib/errors'
 
 function localTime(value: string): string {
   return new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' })
@@ -24,12 +25,6 @@ function durationLabel(job: ExportJob): string {
   const minutes = Math.floor(seconds / 60)
   const remainder = seconds % 60
   return minutes > 0 ? `${minutes}m ${remainder}s` : `${remainder}s`
-}
-
-function errorText(error: unknown): string {
-  if (error instanceof NetworkError) return 'Could not reach the Sentinel server.'
-  if (error instanceof ApiError) return error.message
-  return 'Something went wrong.'
 }
 
 export function ClipsPage() {

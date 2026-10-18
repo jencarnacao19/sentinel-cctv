@@ -11,7 +11,6 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 
-import { ApiError, NetworkError } from '@/api/client'
 import { Alert } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -43,6 +42,9 @@ import { TapoLocalControlsDialog } from '@/features/cameras/TapoLocalControlsDia
 import { useIdentifyCamera } from '@/features/cameras/useCameraRecording'
 import { useDeleteCamera, useDetectPtz, useTestCamera } from '@/features/cameras/useCameras'
 import type { Camera } from '@/types/api'
+import { errorText } from '@/lib/errors'
+
+const FAILED = 'That camera action did not complete.'
 
 interface Props {
   camera: Camera
@@ -113,10 +115,10 @@ export function CameraCard({ camera, privacyMessage }: Props) {
         : null
 
   const actionError =
-    errorText(testCamera.error) ??
-    errorText(detectPtz.error) ??
-    errorText(identify.error) ??
-    errorText(deleteCamera.error)
+    errorText(testCamera.error, FAILED) ??
+    errorText(detectPtz.error, FAILED) ??
+    errorText(identify.error, FAILED) ??
+    errorText(deleteCamera.error, FAILED)
 
   return (
     <Card className="overflow-hidden">
@@ -324,10 +326,4 @@ export function CameraCard({ camera, privacyMessage }: Props) {
       ) : null}
     </Card>
   )
-}
-
-function errorText(error: unknown): string | null {
-  if (error instanceof NetworkError) return 'Could not reach the Sentinel server.'
-  if (error instanceof ApiError) return error.message
-  return error ? 'That camera action did not complete.' : null
 }

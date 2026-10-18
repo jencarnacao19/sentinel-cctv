@@ -1,4 +1,5 @@
 import { screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { App } from '@/App'
@@ -146,6 +147,41 @@ describe('App first-run routing', () => {
 
     expect(await screen.findByRole('heading', { name: 'Live cameras' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Sign out amy' })).toBeInTheDocument()
+  })
+
+  it('ends the setup on the camera wall, not on the dashboard', async () => {
+    // Regression: refreshing the setup state before leaving let /setup send
+    // the administrator to /admin first.
+    window.localStorage.setItem('sentinel.setup-step', 'finish')
+    let finished = false
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = input instanceof Request ? input.url : input instanceof URL ? input.href : input
+        const path = url.replace(/^\/api\/v1/, '').split('?')[0]
+        if (path === '/system/setup/complete' && init?.method === 'POST') {
+          finished = true
+          return Promise.resolve(json({ setup_completed: true }))
+        }
+        if (path === '/auth/status') {
+          return Promise.resolve(json({ initialised: true, setup_completed: finished }))
+        }
+        if (path === '/auth/me') return Promise.resolve(json(ADMIN))
+        if (path === '/storage/settings') {
+          return Promise.resolve(
+            json({ path: null, retention_days: 14, max_bytes: null, min_free_bytes: 0 }),
+          )
+        }
+        return Promise.resolve(json([]))
+      }),
+    )
+    const user = userEvent.setup()
+    renderWithProviders(<App />, { route: '/setup' })
+
+    await user.click(await screen.findByRole('button', { name: 'Open the cameras' }))
+
+    expect(await screen.findByRole('heading', { name: 'Live cameras' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Dashboard' })).not.toBeInTheDocument()
   })
 
   it('starts a brand-new server with the administrator account', async () => {

@@ -706,6 +706,20 @@ data_mount_targets() {
 	'
 }
 
+# Free bytes and filesystem key of one folder offered for recordings, as
+# "bytes<TAB>key"; nothing, and a failure, when it cannot be read. Each probe
+# has a time limit: a network share whose server is gone makes stat, df and
+# findmnt wait for ever, and this runs before the operator is asked anything.
+probe_recordings_candidate() {
+	local path="$1" kib fs_source="" fstype=""
+	kib="$(timeout -k 1 5 df -Pk -- "$path" 2>/dev/null | awk 'NR==2 { print $4 }')"
+	case "$kib" in
+	'' | *[!0-9]*) return 1 ;;
+	esac
+	read -r fs_source fstype < <(timeout -k 1 5 findmnt -rn -o SOURCE,FSTYPE --target "$path" 2>/dev/null) || return 1
+	printf '%s\t%s' $((kib * 1024)) "$(filesystem_key "$fs_source" "$fstype")"
+}
+
 # What makes two paths "the same disk" for the system-disk warning: the device
 # for an ordinary filesystem, the pool for ZFS (two datasets of one pool report
 # different devices but share every byte of space).
@@ -977,16 +991,15 @@ choose_recordings_storage() {
 
 	# One line per distinct folder: free bytes, whether it is the system disk,
 	# the folder and what it is, sorted so the roomiest real disk comes first.
-	local entry label fs_source fstype key avail system seen=" " rows=""
+	local entry label probe key avail system seen=" " rows=""
 	for entry in "${found[@]}"; do
 		path="${entry%%|*}"
 		label="${entry#*|}"
 		case "$seen" in *" $path "*) continue ;; esac
 		seen="$seen$path "
-		[ -d "$path" ] || continue
-		avail="$(df_avail_bytes "$path")" || continue
-		read -r fs_source fstype < <(findmnt -rn -o SOURCE,FSTYPE --target "$path" 2>/dev/null) || continue
-		key="$(filesystem_key "$fs_source" "$fstype")"
+		probe="$(probe_recordings_candidate "$path")" || continue
+		avail="${probe%%$'\t'*}"
+		key="${probe#*$'\t'}"
 		system=0
 		[ "$key" != "$root_key" ] || system=1
 		rows+="$avail"$'\t'"$system"$'\t'"$path"$'\t'"$label"$'\n'
@@ -1431,7 +1444,6 @@ services:
 
     environment:
       TZ: ${TIMEZONE}
-      SENTINEL_TIMEZONE: ${TIMEZONE}
       SENTINEL_LOG_LEVEL: INFO
       SENTINEL_VIEWER_ENABLED: \${SENTINEL_VIEWER_ENABLED:-false}
       SENTINEL_VIEWER_TRUSTED_HOSTS: \${SENTINEL_VIEWER_TRUSTED_HOSTS:-}

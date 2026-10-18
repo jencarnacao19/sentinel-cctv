@@ -3,7 +3,6 @@ import { ArrowLeft, Check } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-import { ApiError, NetworkError } from '@/api/client'
 import { queryKeys, systemApi } from '@/api/endpoints'
 import { Logo } from '@/components/Logo'
 import { Alert } from '@/components/ui/alert'
@@ -21,6 +20,8 @@ import {
 import { StorageStep } from '@/features/setup/StorageStep'
 import { ImportConfigForm } from '@/features/settings/ImportConfigForm'
 import { cn } from '@/lib/utils'
+import type { CreatedApiToken } from '@/types/api'
+import { errorText } from '@/lib/errors'
 
 type StepId = 'import' | 'storage' | 'cameras' | 'accounts' | 'home-assistant' | 'finish'
 
@@ -108,13 +109,6 @@ function rememberStep(id: StepId | null): void {
   }
 }
 
-function errorText(error: unknown, fallback: string): string | null {
-  if (!error) return null
-  if (error instanceof NetworkError) return 'Could not reach the Sentinel server.'
-  if (error instanceof ApiError || error instanceof Error) return error.message
-  return fallback
-}
-
 /**
  * First-run setup, after the administrator account exists.
  *
@@ -129,6 +123,7 @@ export function SetupWizard() {
   const { settings } = useStorageOverview()
   const [index, setIndex] = useState(savedStep)
   const [retention, setRetention] = useState<RetentionChoice>('14')
+  const [homeAssistantToken, setHomeAssistantToken] = useState<CreatedApiToken | null>(null)
 
   const step = STEPS[index]
   const cameraCount = cameras.data?.length ?? 0
@@ -156,8 +151,6 @@ export function SetupWizard() {
     mutationFn: systemApi.completeSetup,
     onSuccess: async () => {
       rememberStep(null)
-      // Leave first: once the server's answer reaches /setup, that route sends
-      // an administrator whose setup is finished to /admin, not to the cameras.
       await navigate('/', { replace: true })
       await queryClient.invalidateQueries({ queryKey: queryKeys.authStatus })
     },
@@ -247,7 +240,9 @@ export function SetupWizard() {
           ) : null}
           {step.id === 'cameras' ? <CamerasStep /> : null}
           {step.id === 'accounts' ? <AccountsManager /> : null}
-          {step.id === 'home-assistant' ? <HomeAssistantStep /> : null}
+          {step.id === 'home-assistant' ? (
+            <HomeAssistantStep token={homeAssistantToken} onCreated={setHomeAssistantToken} />
+          ) : null}
           {step.id === 'finish' ? (
             <p className="rounded-lg border border-(--color-border) p-4 text-sm">
               Bookmark <span className="font-mono">{window.location.origin}</span> on every device

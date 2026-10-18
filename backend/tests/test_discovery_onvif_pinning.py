@@ -51,7 +51,8 @@ class TestMediaServicePinning:
         assert result == "http://192.168.50.50:8899/onvif/media_service"
 
     @pytest.mark.parametrize(
-        "advertised", ["file:///etc/passwd", "ftp://192.168.50.50/x", "not a url", "http://h:99999/"]
+        "advertised",
+        ["file:///etc/passwd", "ftp://192.168.50.50/x", "not a url", "http://h:99999/"],
     )
     async def test_an_unusable_address_falls_back_to_the_device_address(
         self, advertised: str

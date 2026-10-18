@@ -35,7 +35,9 @@ class TestRedaction:
         )
 
     def test_username_only_userinfo_is_removed(self) -> None:
-        assert redact_url("rtsp://admin@192.168.50.50/stream1") == "rtsp://***@192.168.50.50/stream1"
+        assert (
+            redact_url("rtsp://admin@192.168.50.50/stream1") == "rtsp://***@192.168.50.50/stream1"
+        )
 
     def test_url_without_credentials_is_untouched(self) -> None:
         url = "rtsp://192.168.50.50:554/stream1"

@@ -205,6 +205,36 @@ check "an ordinary filesystem is its device" "/dev/sdb1" "$(filesystem_key /dev/
 check "a ZFS dataset is its pool" "rpool" "$(filesystem_key rpool/data zfs)"
 check "the system dataset shares that pool" "rpool" "$(filesystem_key rpool/ROOT/pve-1 zfs)"
 
+printf -- '\n-- probe_recordings_candidate --\n'
+# timeout(1) runs programs, not shell functions, so the stand-ins for df and
+# findmnt are small scripts put first on PATH.
+PROBE_DIR="$(mktemp -d)"
+mkdir -p "$PROBE_DIR/bin"
+cat >"$PROBE_DIR/bin/findmnt" <<'EOF'
+#!/usr/bin/env bash
+printf '/dev/sdb1 ext4\n'
+EOF
+cat >"$PROBE_DIR/bin/df" <<'EOF'
+#!/usr/bin/env bash
+printf 'Filesystem 1024-blocks Used Available Capacity Mounted\n/dev/sdb1 100 50 2048 50%% /\n'
+EOF
+chmod +x "$PROBE_DIR/bin/findmnt" "$PROBE_DIR/bin/df"
+check "reports free bytes and the disk it lives on" \
+	"2097152|/dev/sdb1" \
+	"$(PATH="$PROBE_DIR/bin:$PATH" probe_recordings_candidate "$PROBE_DIR" | tr '\t' '|')"
+cat >"$PROBE_DIR/bin/df" <<'EOF'
+#!/usr/bin/env bash
+sleep 30
+EOF
+began=$SECONDS
+if PATH="$PROBE_DIR/bin:$PATH" probe_recordings_candidate "$PROBE_DIR" >/dev/null; then
+	fail "a folder that never answers is given up on" "non-zero exit" "exit 0"
+else
+	pass "a folder that never answers is given up on"
+fi
+check "and quickly, not after the share times out" "yes" "$([ $((SECONDS - began)) -lt 10 ] && echo yes || echo no)"
+rm -rf "$PROBE_DIR"
+
 printf -- '\n-- choose_recordings_storage --\n'
 # The whole menu, against three folders standing in for disks. findmnt,
 # df and the storage list are replaced; ask() answers with $MENU_ANSWER, or
@@ -212,24 +242,21 @@ printf -- '\n-- choose_recordings_storage --\n'
 DISKS="$(mktemp -d)"
 mkdir -p "$DISKS/vz" "$DISKS/usb" "$DISKS/big"
 storage_cfg_directories() {
-	printf 'local\t%s\nusb\t%s\nbig\t%s\n' "$DISKS/vz" "$DISKS/usb" "$DISKS/big"
+	# "nas" stands for a share whose server is off: its probe gives up.
+	printf 'local\t%s\nusb\t%s\nbig\t%s\nnas\t%s\n' "$DISKS/vz" "$DISKS/usb" "$DISKS/big" "$DISKS/nas"
 }
 findmnt() {
-	local target="${!#}"
 	case "$*" in
 	*TARGET,FSTYPE*) return 0 ;;
 	esac
-	case "$target" in
-	/ | "$DISKS/vz") printf '/dev/mapper/pve-root ext4\n' ;;
-	"$DISKS/usb") printf '/dev/sdb1 ext4\n' ;;
-	"$DISKS/big") printf '/dev/sdc1 xfs\n' ;;
-	esac
+	printf '/dev/mapper/pve-root ext4\n'
 }
-df_avail_bytes() {
+probe_recordings_candidate() {
 	case "$1" in
-	"$DISKS/vz") printf '%s' $((80 * 1073741824)) ;;
-	"$DISKS/usb") printf '%s' $((500 * 1073741824)) ;;
-	"$DISKS/big") printf '%s' $((3000 * 1073741824)) ;;
+	"$DISKS/vz") printf '%s\t%s' $((80 * 1073741824)) /dev/mapper/pve-root ;;
+	"$DISKS/usb") printf '%s\t%s' $((500 * 1073741824)) /dev/sdb1 ;;
+	"$DISKS/big") printf '%s\t%s' $((3000 * 1073741824)) /dev/sdc1 ;;
+	*) return 1 ;;
 	esac
 }
 ask() {
@@ -253,6 +280,8 @@ check "the system disk is listed last among the disks, and says so" \
 	"1" "$(grep -c '^ *3) .*the disk Proxmox runs from' "$MENU_FILE")"
 check "the container itself is always the last choice" \
 	"1" "$(grep -c '^ *4) Inside the container (16 GB)' "$MENU_FILE")"
+check "a folder that cannot be read in time is left out" \
+	"0" "$(grep -c '/nas' "$MENU_FILE")"
 pick_disk 3
 check "the system disk can still be chosen on purpose" \
 	"$DISKS/vz/sentinel-recordings" "$RECORDINGS_PATH"
@@ -269,7 +298,7 @@ ASSUME_YES=0
 choose_recordings_storage >/dev/null
 check "--recordings-path is never second-guessed" "/tank/recordings" "$RECORDINGS_PATH"
 rm -rf "$DISKS"
-unset -f storage_cfg_directories findmnt df_avail_bytes ask pick_disk
+unset -f storage_cfg_directories findmnt probe_recordings_candidate ask pick_disk
 
 printf -- '\n-- list_marked_containers --\n'
 cat >"$CONF_DIR/102.conf" <<EOF

@@ -247,7 +247,9 @@ class TestHotStreamSync:
         manager = Go2RtcManager(settings)
         stream_name = camera.stream_name
         manager.client.list_streams = AsyncMock(  # type: ignore[method-assign]
-            return_value={stream_name: {"producers": [{"url": "rtsp://192.168.50.220:554/stream1"}]}}
+            return_value={
+                stream_name: {"producers": [{"url": "rtsp://192.168.50.220:554/stream1"}]}
+            }
         )
         manager.client.add_stream = AsyncMock()  # type: ignore[method-assign]
         manager.client.delete_stream = AsyncMock()  # type: ignore[method-assign]

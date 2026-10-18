@@ -146,8 +146,6 @@ class Settings(BaseSettings):
 
     # --- Runtime ---------------------------------------------------------
     log_level: str = "INFO"
-    timezone: str = "UTC"
-    """Display timezone. Timestamps are always stored in UTC."""
 
     testing: bool = False
 

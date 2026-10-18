@@ -1,7 +1,6 @@
 import { Check, Loader2, Radar, RefreshCw, Wifi } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
-import { ApiError, NetworkError } from '@/api/client'
 import { Alert } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -25,17 +24,13 @@ import {
   useDiscoveryScan,
   useOnvifProfiles,
 } from '@/features/cameras/discovery'
+import { errorText } from '@/lib/errors'
+
+const FAILED = 'The camera could not be discovered.'
 
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
-}
-
-function errorText(error: unknown): string | null {
-  if (error instanceof NetworkError) return 'Could not reach the Sentinel server.'
-  if (error instanceof ApiError) return error.message
-  if (error) return 'The camera could not be discovered.'
-  return null
 }
 
 function pixels(profile: MediaProfile): number {
@@ -162,7 +157,7 @@ export function DiscoverCameraDialog({ open, onOpenChange }: Props) {
               ) : null}
             </div>
 
-            {errorText(scan.error) ? <Alert variant="danger">{errorText(scan.error)}</Alert> : null}
+            {errorText(scan.error, FAILED) ? <Alert variant="danger">{errorText(scan.error, FAILED)}</Alert> : null}
             {scan.data && devices.length === 0 ? (
               <Alert variant="warning" title="No ONVIF cameras answered.">
                 Confirm ONVIF is enabled in each camera, that Sentinel and the cameras are on the
@@ -263,8 +258,8 @@ export function DiscoverCameraDialog({ open, onOpenChange }: Props) {
               )}
               Find camera streams
             </Button>
-            {errorText(resolveProfiles.error) ? (
-              <Alert variant="danger">{errorText(resolveProfiles.error)}</Alert>
+            {errorText(resolveProfiles.error, FAILED) ? (
+              <Alert variant="danger">{errorText(resolveProfiles.error, FAILED)}</Alert>
             ) : null}
           </FormSection>
 
@@ -321,8 +316,8 @@ export function DiscoverCameraDialog({ open, onOpenChange }: Props) {
                 The highest-resolution profile is selected for recording and the smallest for
                 motion detection. You can change either choice.
               </p>
-              {errorText(createCamera.error) ? (
-                <Alert variant="danger">{errorText(createCamera.error)}</Alert>
+              {errorText(createCamera.error, FAILED) ? (
+                <Alert variant="danger">{errorText(createCamera.error, FAILED)}</Alert>
               ) : null}
             </section>
           ) : null}

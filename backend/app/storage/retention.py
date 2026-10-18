@@ -39,6 +39,7 @@ from pathlib import Path
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.sql.elements import ColumnElement
 
 from app.config import Settings, get_settings
@@ -308,10 +309,12 @@ async def _prune_motion_events(
     protecting a clip. The per-camera override applies here too, so a camera
     configured to keep a month of footage keeps a month of evidence with it.
     """
-    if not policy.retention_days:
+    age_filter = _age_filter(
+        MotionEvent.camera_id, MotionEvent.started_at, moment, policy, overrides
+    )
+    if age_filter is None:
         return 0, _EvidenceDeletion(), set()
 
-    default_cutoff = moment - timedelta(days=policy.retention_days)
     rows = await session.execute(
         select(MotionEvent)
         .where(
@@ -319,6 +322,7 @@ async def _prune_motion_events(
             MotionEvent.started_at < safety_cutoff,
             MotionEvent.ended_at.is_not(None),
             MotionEvent.ended_at < safety_cutoff,
+            age_filter,
         )
         .order_by(MotionEvent.started_at.asc())
         .limit(MAX_EVENT_DELETIONS_PER_SWEEP)
@@ -329,10 +333,6 @@ async def _prune_motion_events(
     failures = 0
     failed_event_ids: set[str] = set()
     for event in rows.scalars():
-        days = overrides.get(event.camera_id) or policy.retention_days
-        cutoff = moment - timedelta(days=days) if days else default_cutoff
-        if event.started_at >= cutoff:
-            continue
         outcome = await _delete_motion_evidence(settings, event)
         freed += outcome.freed_bytes
         cleared += outcome.references_cleared
@@ -353,6 +353,40 @@ async def _prune_motion_events(
         ),
         failed_event_ids,
     )
+
+
+def _age_filter(
+    camera_column: InstrumentedAttribute[str],
+    started_column: InstrumentedAttribute[datetime],
+    moment: datetime,
+    policy: RetentionPolicy,
+    overrides: dict[str, int | None],
+) -> ColumnElement[bool] | None:
+    """Rows past their camera's retention period, or ``None`` when nothing expires.
+
+    A camera's own period wins; cameras without one follow the global period,
+    and keep everything when that is unlimited.
+    """
+    with_own = [camera_id for camera_id, days in overrides.items() if days]
+    conditions = [
+        and_(camera_column == camera_id, started_column < moment - timedelta(days=days))
+        for camera_id, days in overrides.items()
+        if days
+    ]
+    if policy.retention_days:
+        conditions.append(
+            and_(
+                camera_column.not_in(with_own),
+                started_column < moment - timedelta(days=policy.retention_days),
+            )
+        )
+    return or_(*conditions) if conditions else None
+
+
+def _age_reason(policy: RetentionPolicy) -> str:
+    if policy.retention_days:
+        return f"older than {policy.retention_days} days"
+    return "past their camera's retention period"
 
 
 def candidate_filters(cutoff: datetime) -> tuple[ColumnElement[bool], ...]:
@@ -429,39 +463,28 @@ async def sweep(
     reasons: list[str] = []
 
     # --- Age ------------------------------------------------------------
-    if policy.retention_days:
-        overrides = await _camera_retention(session)
-        default_cutoff = moment - timedelta(days=policy.retention_days)
-        camera_cutoffs = [
-            and_(
-                RecordingSegment.camera_id == camera_id,
-                RecordingSegment.started_at < moment - timedelta(days=days),
-            )
-            for camera_id, days in overrides.items()
-            if days
-        ]
-        default_age = and_(
-            RecordingSegment.camera_id.not_in([key for key, days in overrides.items() if days]),
-            RecordingSegment.started_at < default_cutoff,
-        )
+    # A camera's own retention applies even when the global one is unlimited:
+    # a short period set on one camera is often a legal limit for that view.
+    overrides = await _camera_retention(session)
+    age_filter = _age_filter(
+        RecordingSegment.camera_id, RecordingSegment.started_at, moment, policy, overrides
+    )
+    if age_filter is not None:
         # Filter age before limiting: long per-camera overrides must not hide
         # expired footage behind the first bounded batch on every sweep.
         candidates = await _candidates(
             session,
             limit=MAX_DELETIONS_PER_SWEEP,
             cutoff=safety_cutoff,
-            age_filter=or_(default_age, *camera_cutoffs),
+            age_filter=age_filter,
         )
         for segment in candidates:
-            days = overrides.get(segment.camera_id) or policy.retention_days
-            cutoff = moment - timedelta(days=days) if days else default_cutoff
-            if segment.started_at < cutoff:
-                reclaimed = await _delete_segment(session, segment, root)
-                if reclaimed is not None:
-                    freed += reclaimed
-                    deleted += 1
+            reclaimed = await _delete_segment(session, segment, root)
+            if reclaimed is not None:
+                freed += reclaimed
+                deleted += 1
         if deleted:
-            reasons.append(f"older than {policy.retention_days} days")
+            reasons.append(_age_reason(policy))
 
         # Motion evidence, on the same policy and in the same pass. Two small
         # files per event, but there are far more events than segments, and
@@ -478,7 +501,7 @@ async def sweep(
         evidence_references_cleared += final_evidence.references_cleared
         evidence_failures += final_evidence.failures
         if events_deleted and not deleted:
-            reasons.append(f"motion evidence older than {policy.retention_days} days")
+            reasons.append(f"motion evidence {_age_reason(policy)}")
 
     # The heavyweight JPEGs have a deliberately shorter lifetime than the
     # events themselves.  This runs even when event retention is disabled: the

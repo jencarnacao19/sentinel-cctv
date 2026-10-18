@@ -1,7 +1,6 @@
 import { Loader2 } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
 
-import { ApiError, NetworkError } from '@/api/client'
 import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -17,6 +16,9 @@ import { Switch } from '@/components/ui/switch'
 import { useSetCameraRecording } from '@/features/cameras/useCameraRecording'
 import { cn } from '@/lib/utils'
 import type { Camera, RecordingRuntimeState } from '@/types/api'
+import { errorText } from '@/lib/errors'
+
+const FAILED = 'The recording change could not be applied.'
 
 interface Props {
   camera: Camera
@@ -73,7 +75,7 @@ export function RecordingToggle({ camera, disabled = false, disabledReason }: Pr
     mutation.mutate({ enabled: false, confirm: true })
   }
 
-  const failure = errorText(mutation.error)
+  const failure = errorText(mutation.error, FAILED)
 
   return (
     <div className="flex flex-col gap-1">
@@ -159,10 +161,4 @@ const STATES: Record<RecordingRuntimeState, Presentation> = {
 const PENDING: Record<'starting' | 'stopping', Presentation> = {
   starting: { label: 'Starting…', className: 'text-(--color-fg-muted)' },
   stopping: { label: 'Stopping…', className: 'text-(--color-fg-muted)' },
-}
-
-function errorText(error: unknown): string | null {
-  if (error instanceof NetworkError) return 'Could not reach the Sentinel server.'
-  if (error instanceof ApiError) return error.message
-  return error ? 'The recording change could not be applied.' : null
 }

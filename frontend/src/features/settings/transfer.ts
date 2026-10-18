@@ -1,4 +1,4 @@
-import { ApiError, NetworkError } from '@/api/client'
+import { ApiError } from '@/api/client'
 
 /** What importing a configuration file did, camera by camera. */
 export interface ImportSummary {
@@ -8,13 +8,6 @@ export interface ImportSummary {
   settings_skipped: { name: string; reason: string }[]
   warnings: string[]
   passwords_restored: boolean
-}
-
-export function errorText(error: unknown, fallback: string): string | null {
-  if (!error) return null
-  if (error instanceof NetworkError) return 'Could not reach the Sentinel server.'
-  if (error instanceof ApiError) return error.message
-  return fallback
 }
 
 /** The server's own explanation of a refused upload or download. */

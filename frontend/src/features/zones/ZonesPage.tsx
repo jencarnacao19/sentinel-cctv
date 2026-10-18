@@ -17,7 +17,6 @@
 import { Redo2, Save, Undo2, Video } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import { ApiError, NetworkError } from '@/api/client'
 import { EmptyState } from '@/components/EmptyState'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Alert } from '@/components/ui/alert'
@@ -44,12 +43,7 @@ import {
   zonesSignature,
   zonesToPayload,
 } from '@/features/zones/zoneMath'
-
-function errorText(error: unknown): string {
-  if (error instanceof NetworkError) return 'Could not reach the Sentinel server.'
-  if (error instanceof ApiError) return error.message
-  return 'Something went wrong.'
-}
+import { errorText } from '@/lib/errors'
 
 function sanitizeSavedZones(raw: unknown): EditorZone[] {
   return sanitizeServerZones(raw).zones

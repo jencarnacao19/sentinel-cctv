@@ -150,6 +150,40 @@ class TestAgeRetention:
         assert result.deleted == 0
         assert (recordings_dir / kept.path).exists()
 
+    async def test_a_cameras_own_period_applies_when_the_global_one_is_unlimited(
+        self, admin_client: AsyncClient, recordings_dir: Path
+    ) -> None:
+        """A short period on one camera is often a legal limit for that view."""
+        limited = (await admin_client.post("/api/v1/cameras", json=CAMERA_PAYLOAD)).json()
+        changed = await admin_client.patch(
+            f"/api/v1/cameras/{limited['id']}", json={"retention_days": 3}
+        )
+        assert changed.status_code == 200, changed.text
+        unlimited = (
+            await admin_client.post(
+                "/api/v1/cameras",
+                json={
+                    **CAMERA_PAYLOAD,
+                    "name": "Second",
+                    "main_stream_url": "rtsp://192.168.50.51/s",
+                },
+            )
+        ).json()
+        expired = await make_segment(recordings_dir, limited["id"], age_hours=24 * 5)
+        kept = await make_segment(recordings_dir, unlimited["id"], age_hours=24 * 5)
+
+        async with session_scope() as session:
+            result = await retention.sweep(
+                session,
+                recordings_dir,
+                policy=RetentionPolicy(retention_days=None, max_bytes=None, min_free_bytes=None),
+                storage=AVAILABLE,
+            )
+
+        assert result.deleted == 1
+        assert not (recordings_dir / expired.path).exists()
+        assert (recordings_dir / kept.path).exists()
+
 
 class TestSizeRetention:
     async def test_the_oldest_go_first_when_the_size_limit_is_exceeded(

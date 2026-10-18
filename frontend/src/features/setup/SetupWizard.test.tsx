@@ -186,4 +186,23 @@ describe('SetupWizard', () => {
     )
     expect(created?.body).toEqual({ name: 'Home Assistant', scope: 'camera_control' })
   })
+
+  it('keeps the same token when the step is left and opened again', async () => {
+    window.localStorage.setItem('sentinel.setup-step', 'home-assistant')
+    const state = server()
+    const user = userEvent.setup()
+    renderWithProviders(<SetupWizard />)
+
+    await user.click(screen.getByRole('button', { name: 'Create token' }))
+    expect(await screen.findByText('sctv_home_assistant_token')).toBeInTheDocument()
+    await next(user, 'Back')
+    await next(user)
+
+    expect(await screen.findByText('sctv_home_assistant_token')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Create token' })).not.toBeInTheDocument()
+    const creations = state.requests.filter(
+      (request) => request.method === 'POST' && request.url.endsWith('/auth/tokens'),
+    )
+    expect(creations).toHaveLength(1)
+  })
 })

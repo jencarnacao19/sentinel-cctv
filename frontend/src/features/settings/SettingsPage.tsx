@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, Copy, Download, KeyRound, ShieldCheck, Trash2, Unlock, Upload } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
-import { ApiError, API_BASE, NetworkError } from '@/api/client'
+import { ApiError, API_BASE } from '@/api/client'
 import { AccountsManager } from '@/features/accounts/AccountsManager'
 import { SoundPolicyCard } from '@/features/appearance/SoundPolicyCard'
 import { MoveMachineCard } from '@/features/settings/MoveMachineCard'
@@ -18,17 +18,11 @@ import { Select } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import type { ApiToken, ApiTokenScope, CreatedApiToken, LoginBlock } from '@/types/api'
+import { errorText } from '@/lib/errors'
 
 const tokenScopeLabels: Record<ApiTokenScope, string> = {
   read_only: 'Read only',
   camera_control: 'Camera control',
-}
-
-function errorText(error: unknown, fallback: string): string | null {
-  if (!error) return null
-  if (error instanceof NetworkError) return 'Could not reach the Sentinel server.'
-  if (error instanceof ApiError) return error.message
-  return fallback
 }
 
 function formatDate(iso: string | null): string {

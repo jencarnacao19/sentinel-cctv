@@ -709,7 +709,8 @@ class TestIncidentLifecycle:
             last_exit_code=1,
             source=RecorderSource.DIRECT.value,
             last_error=(
-                "rtsp://admin:camera-secret@192.168.50.50:554/stream1: non-existing PPS 0 referenced"
+                "rtsp://admin:camera-secret@192.168.50.50:554/stream1: "
+                "non-existing PPS 0 referenced"
             ),
         )
         monitor = get_monitor()

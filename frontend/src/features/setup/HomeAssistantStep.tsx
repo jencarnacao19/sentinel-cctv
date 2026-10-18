@@ -6,6 +6,7 @@ import { ApiError, NetworkError } from '@/api/client'
 import { authApi } from '@/api/endpoints'
 import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import type { CreatedApiToken } from '@/types/api'
 
 const REPOSITORY = 'https://github.com/jencarnacao19/sentinel-cctv'
 
@@ -47,12 +48,21 @@ function Value({ value, label }: { value: string; label: string }) {
  * The three things Home Assistant needs, in the order it asks for them.
  *
  * The token is created here with Camera control, which the recording switch
- * needs, and shown once: Sentinel keeps only a hash of it.
+ * needs, and shown once: Sentinel keeps only a hash of it. The wizard holds on
+ * to it, so going back and returning to this step shows the same token rather
+ * than offering to create another.
  */
-export function HomeAssistantStep() {
+export function HomeAssistantStep({
+  token,
+  onCreated,
+}: {
+  token: CreatedApiToken | null
+  onCreated: (token: CreatedApiToken) => void
+}) {
   const address = window.location.origin
   const createToken = useMutation({
     mutationFn: () => authApi.createToken('Home Assistant', 'camera_control'),
+    onSuccess: onCreated,
   })
   const tokenError =
     createToken.error instanceof NetworkError
@@ -83,13 +93,13 @@ export function HomeAssistantStep() {
       </li>
       <li>
         <p className="font-medium">3. Give it a token</p>
-        {createToken.data ? (
+        {token ? (
           <>
             <p className="text-(--color-fg-muted)">
               Paste it when Home Assistant asks. It is shown only now: Sentinel keeps just a
               fingerprint of it.
             </p>
-            <Value value={createToken.data.token} label="Copy the token" />
+            <Value value={token.token} label="Copy the token" />
           </>
         ) : (
           <>

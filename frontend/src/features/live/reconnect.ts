@@ -18,10 +18,9 @@
  * Delay before each successive retry, in milliseconds. The last rung is the
  * cap: attempt six and everything after it waits that long.
  *
- * It ends where `features/realtime/client.ts` ends for the same reason — half a
- * minute is long enough to stop pressing a server that is still coming back up,
- * and short enough that an operator watching a wall sees it recover on its own
- * rather than reaching for the reload button.
+ * It ends at half a minute: long enough to stop pressing a server that is still
+ * coming back up, and short enough that an operator watching a wall sees it
+ * recover on its own rather than reaching for the reload button.
  */
 export const RECONNECT_DELAYS_MS = [1_000, 2_000, 4_000, 8_000, 15_000, 30_000]
 

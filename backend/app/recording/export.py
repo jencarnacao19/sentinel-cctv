@@ -45,7 +45,8 @@ from app.database.session import session_scope
 from app.logging_config import get_logger
 from app.recording import paths, timeline
 from app.security.paths import UnsafePathError, resolve_within
-from app.storage.root import get_storage_root
+from app.storage.root import check_storage, get_storage_root
+from app.system import settings_store
 
 logger = get_logger("RECORDING")
 
@@ -92,6 +93,28 @@ class EmptyExportRangeError(timeline.TimelineRangeError):
     A subclass of the timeline's own range error so a router only needs one
     ``except`` clause to turn any bad-range condition into a 422.
     """
+
+
+class NotEnoughSpaceError(timeline.TimelineRangeError):
+    """Saving this clip would use the space kept free for recording.
+
+    Saved clips are never deleted by retention, so letting them into that
+    reserve would make retention delete ordinary footage to make room, and
+    in the end stop recording. A range error too, for the same single 422.
+    """
+
+
+async def ensure_room_for(session: AsyncSession, root: Path, estimated_bytes: int) -> None:
+    """Refuse a clip whose estimated size would cross the free-space reserve."""
+    storage = await asyncio.to_thread(check_storage, root)
+    if not storage.available:
+        return  # the worker reports an unavailable volume on its own terms
+    reserve = await settings_store.get_setting(session, settings_store.STORAGE_MIN_FREE_BYTES)
+    if storage.free_bytes - estimated_bytes < (reserve or 0):
+        raise NotEnoughSpaceError(
+            "There is not enough free space to save this clip without deleting recordings. "
+            "Choose a shorter range, or remove saved clips you no longer need."
+        )
 
 
 # --- Paths ----------------------------------------------------------------
@@ -222,6 +245,7 @@ async def create_job(
     plan = await timeline.build_export_plan(session, camera_id, start, end)
     if not plan.parts:
         raise EmptyExportRangeError("There is no recorded footage in that range to export.")
+    await ensure_room_for(session, await get_storage_root(session), plan.estimated_bytes)
 
     job = ExportJob(
         camera_id=camera_id,
@@ -560,6 +584,24 @@ class ExportManager:
         async with session_scope() as session:
             plan = await timeline.build_export_plan(session, camera_id, start, end)
             segment_paths = await _segment_paths(session, [part.segment_id for part in plan.parts])
+            # Checked again here: a queue of clips can each fit when asked for
+            # and still, all together, fill the disk by the time they run.
+            try:
+                await ensure_room_for(session, root, plan.estimated_bytes)
+            except NotEnoughSpaceError as exc:
+                room_error: str | None = str(exc)
+            else:
+                room_error = None
+
+        if room_error is not None:
+            await self._finish(
+                job_id,
+                ExportStatus.FAILED,
+                error=room_error,
+                destination=destination,
+                keep_file=False,
+            )
+            return
 
         if not plan.parts:
             await self._finish(

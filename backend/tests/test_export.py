@@ -26,6 +26,7 @@ from app.recording import export, indexer, paths, recorder, timeline
 from app.recording.export import ExportManager
 from app.recording.recorder import RecorderInput, build_record_command
 from app.storage.root import get_storage_root
+from app.system import settings_store
 
 FFMPEG = shutil.which("ffmpeg")
 requires_ffmpeg = pytest.mark.skipif(not FFMPEG, reason="FFmpeg is required for this test")
@@ -165,6 +166,27 @@ class TestCreateJob:
         assert job.status is ExportStatus.QUEUED
         assert job.camera_id == created["id"]
         assert job.progress == 0.0
+
+    async def test_a_clip_that_would_use_the_recording_reserve_is_refused(
+        self, admin_client: AsyncClient
+    ) -> None:
+        """Saved clips are never deleted, so they may not eat the space recording needs."""
+        created = (await admin_client.post("/api/v1/cameras", json=CAMERA_PAYLOAD)).json()
+        await _segment(created["id"], started_at=DAY, ended_at=DAY + timedelta(seconds=60))
+        async with session_scope() as session:
+            # A reserve larger than any disk: whatever is free is already short.
+            await settings_store.set_setting(session, settings_store.STORAGE_MIN_FREE_BYTES, 10**18)
+
+        response = await admin_client.post(
+            "/api/v1/exports",
+            json={
+                "camera_id": created["id"],
+                "start_at": DAY.isoformat(),
+                "end_at": (DAY + timedelta(seconds=30)).isoformat(),
+            },
+        )
+        assert response.status_code == 422, response.text
+        assert "not enough free space" in response.json()["detail"]
 
     async def test_a_backwards_range_is_rejected(self, admin_client: AsyncClient) -> None:
         created = (await admin_client.post("/api/v1/cameras", json=CAMERA_PAYLOAD)).json()

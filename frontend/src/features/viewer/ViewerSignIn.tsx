@@ -87,6 +87,13 @@ export function ViewerSignIn() {
           Sign in
         </Button>
       </form>
+      {/* A frame from another address, such as a Home Assistant panel, cannot
+          keep this sign-in: the browser withholds the session cookie there,
+          so the form would only come back with no explanation. */}
+      <p className="mt-4 text-xs leading-5 text-(--color-fg-subtle)">
+        Inside Home Assistant? Use the Sentinel panel there, which opens with its own viewer key.
+        Signing in here works when Sentinel is open in its own tab.
+      </p>
     </section>
   )
 }

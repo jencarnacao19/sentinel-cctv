@@ -30,9 +30,8 @@ services:
       - ./recordings:/recordings
 
     environment:
-      # Display timezone. Timestamps are always stored in UTC.
+      # Local time in the log. Recordings are always stored in UTC.
       TZ: ${TZ:-Europe/Lisbon}
-      SENTINEL_TIMEZONE: ${TZ:-Europe/Lisbon}
       SENTINEL_LOG_LEVEL: ${SENTINEL_LOG_LEVEL:-INFO}
       # Optional footage operator. Administration always keeps its normal
       # login even when this is enabled. See docs/remote-access.md.
