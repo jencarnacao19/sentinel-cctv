@@ -103,7 +103,7 @@ class TestManagingAccounts:
     async def test_a_taken_name_is_refused_whatever_its_case(
         self, admin_client: AsyncClient, viewer_account: dict[str, object]
     ) -> None:
-        for username in ("ANA", ADMIN_USERNAME.upper()):
+        for username in (VIEWER["username"].upper(), ADMIN_USERNAME.upper()):
             response = await admin_client.post(
                 "/api/v1/auth/users", json={"username": username, "password": "another-password-1"}
             )
