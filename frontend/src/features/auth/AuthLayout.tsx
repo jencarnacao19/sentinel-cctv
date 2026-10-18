@@ -21,9 +21,9 @@ interface AuthLayoutProps {
  * A product-specific entry screen, shared by sign-in and first-run setup.
  *
  * The letter-spaced monospace capitals are gone. Six of them on one screen --
- * an eyebrow, a strapline, three definition terms and a link -- is the visual
- * signature of a generated dashboard rather than of an application, and none of
- * them were technical values that a monospace face helps to read.
+ * an eyebrow, a strapline, three definition terms and a link -- made the page
+ * look like a template rather than an application, and none of them were
+ * technical values that a monospace face helps to read.
  *
  * On a phone the marketing column is not rendered at all, so the sign-in form
  * is the first thing on screen rather than the second, and the whole layout
