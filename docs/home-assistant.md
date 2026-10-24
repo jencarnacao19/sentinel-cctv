@@ -47,15 +47,15 @@ and a deleted one becomes unavailable.
 
 ### Through HACS
 
-1. HACS → three-dot menu → **Custom repositories**
-2. Add `https://github.com/jencarnacao19/sentinel-cctv`, category
-   **Integration**
-3. Install **Sentinel CCTV**, then restart Home Assistant
+1. Open HACS and search for **Sentinel CCTV**
+2. Open it, choose **Download**, then restart Home Assistant
+
+Sentinel CCTV is in HACS's default list, so no custom repository is needed.
 
 HACS installs only the `custom_components/sentinel` directory. The server is
 installed separately, as described in the main README. Sentinel's own setup
-ends with a Home Assistant step that shows these three steps, this server's
-address and a token created for it.
+ends with a Home Assistant step that shows this server's address and a token
+created for it.
 
 ### By hand
 

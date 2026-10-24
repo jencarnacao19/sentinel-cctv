@@ -55,9 +55,8 @@ under **Admin**.
 
 1. In Sentinel, create a token under **Settings → API tokens** (the setup offers
    this as its last step).
-2. In Home Assistant, open **HACS → ⋮ → Custom repositories**, add
-   `https://github.com/jencarnacao19/sentinel-cctv` as an **Integration**,
-   install **Sentinel CCTV** and restart Home Assistant.
+2. In Home Assistant, open **HACS**, search for **Sentinel CCTV**, download it
+   and restart Home Assistant.
 3. Sentinel usually appears on its own under **Settings → Devices & services**
    (otherwise use **Add integration → Sentinel CCTV**). Add it and paste the
    token.
