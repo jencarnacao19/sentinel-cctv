@@ -57,6 +57,8 @@ class HaCamera(BaseModel):
     motion_zones: list[HaMotionZone] = Field(default_factory=list)
     capabilities: HaCameraCapabilities
     stream: HaCameraStream
+    #: Live RTSP URL, with the relay's credentials, when ``home_assistant_live`` is on.
+    stream_url: str | None = None
 
 
 class HaHandshake(BaseModel):
