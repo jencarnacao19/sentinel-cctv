@@ -5,7 +5,12 @@ import { Button } from '@/components/ui/button'
 import { HlsPlayer, prefersNativeHls } from '@/features/live/hls'
 import { isMseSupported, MsePlayer, type PlayerState, websocketUrl } from '@/features/live/mse'
 import { PtzControls } from '@/features/live/PtzControls'
-import { isWebRtcSupported, WebRtcPlayer } from '@/features/live/webrtc'
+import { posterKey, readPoster, savePoster } from '@/features/live/poster'
+import {
+  directRecentlyUnreachable,
+  isWebRtcSupported,
+  WebRtcPlayer,
+} from '@/features/live/webrtc'
 import { useFullscreen } from '@/features/timeline/useFullscreen'
 import {
   viewerAuthHeaders,
@@ -87,6 +92,21 @@ export function VideoPlayer({
   const [detail, setDetail] = useState<string | undefined>()
   const [muted, setMuted] = useState(true)
   const fullscreen = useFullscreen({ containerRef, videoRef })
+  const storedPoster = posterKey(cameraId, sub)
+  const [poster] = useState(() => readPoster(storedPoster))
+
+  useEffect(() => {
+    if (state !== 'playing') return
+    const video = videoRef.current
+    if (!video) return
+    const save = () => savePoster(storedPoster, video)
+    const first = window.setTimeout(save, 1_000)
+    const every = window.setInterval(save, 15_000)
+    return () => {
+      window.clearTimeout(first)
+      window.clearInterval(every)
+    }
+  }, [state, storedPoster])
 
   useEffect(() => {
     if (privacyMessage) return
@@ -128,15 +148,20 @@ export function VideoPlayer({
       active = new WebRtcPlayer(
         video,
         `/api/v1/streams/${cameraId}/${viewer ? 'viewer-webrtc' : 'webrtc'}${query}`,
-        { ...events, onUnsupported: startHls },
+        { ...events, onUnsupported: startHttps },
         viewer ? viewerAuthHeaders() : undefined,
       )
       active.start()
     }
 
-    if (prefersNativeHls(video)) {
-      startHls()
-    } else if (isMseSupported()) {
+    // Away from home: HLS where Apple's player is native, MSE over the socket elsewhere.
+    function startHttps() {
+      if (disposed || !video) return
+      if (prefersNativeHls(video) || !isMseSupported()) {
+        startHls()
+        return
+      }
+      active?.stop()
       active = new MsePlayer(
         video,
         websocketUrl(
@@ -144,14 +169,16 @@ export function VideoPlayer({
             ? viewerWebsocketPath(cameraId, sub)
             : `/api/v1/streams/${cameraId}/ws${query}`,
         ),
-        { ...events, onUnsupported: startWebRtc },
+        { ...events, onUnsupported: startHls },
         viewer ? viewerWebsocketProtocols() : undefined,
       )
       active.start()
-    } else if (isWebRtcSupported()) {
+    }
+
+    if (isWebRtcSupported() && !directRecentlyUnreachable()) {
       startWebRtc()
     } else {
-      startHls()
+      startHttps()
     }
 
     return () => {
@@ -209,11 +236,21 @@ export function VideoPlayer({
         muted={muted}
         playsInline
         autoPlay
+        poster={poster}
         aria-label={`Live view of ${cameraName}`}
       />
 
       {!isLive ? (
-        state === 'connecting' ? (
+        state === 'connecting' && poster ? (
+          // The last frame is already on screen; dimming it would only hide it.
+          <span
+            role="status"
+            className="material-media absolute top-2 right-2 rounded-full p-1 text-(--color-media-fg)"
+          >
+            <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+            <span className="sr-only">Connecting…</span>
+          </span>
+        ) : state === 'connecting' ? (
           <StreamState
             icon={<Loader2 className="animate-spin" />}
             title="Connecting…"

@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PlayerState } from '@/features/live/mse'
-import { isWebRtcSupported, WebRtcPlayer } from '@/features/live/webrtc'
+import {
+  directRecentlyUnreachable,
+  isWebRtcSupported,
+  WebRtcPlayer,
+} from '@/features/live/webrtc'
 
 class FakeMediaStream {
   private readonly tracks: MediaStreamTrack[] = []
@@ -18,6 +22,7 @@ class FakeMediaStream {
 class FakePeerConnection extends EventTarget {
   static instances: FakePeerConnection[] = []
   static deliverTrack = true
+  static connects = true
 
   iceGatheringState: RTCIceGatheringState = 'complete'
   connectionState: RTCPeerConnectionState = 'new'
@@ -40,8 +45,10 @@ class FakePeerConnection extends EventTarget {
   }
 
   setRemoteDescription(): Promise<void> {
-    this.connectionState = 'connected'
-    this.dispatchEvent(new Event('connectionstatechange'))
+    if (FakePeerConnection.connects) {
+      this.connectionState = 'connected'
+      this.dispatchEvent(new Event('connectionstatechange'))
+    }
     if (FakePeerConnection.deliverTrack) {
       const trackEvent = new Event('track') as Event & { track: MediaStreamTrack }
       trackEvent.track = {
@@ -68,6 +75,8 @@ function fakeVideo(): HTMLVideoElement {
 beforeEach(() => {
   FakePeerConnection.instances = []
   FakePeerConnection.deliverTrack = true
+  FakePeerConnection.connects = true
+  window.sessionStorage.clear()
   vi.stubGlobal('RTCPeerConnection', FakePeerConnection)
   vi.stubGlobal('MediaStream', FakeMediaStream)
 })
@@ -132,6 +141,28 @@ describe('WebRtcPlayer', () => {
       await vi.advanceTimersByTimeAsync(8_000)
       expect(handoff).toHaveBeenCalledOnce()
       expect(FakePeerConnection.instances[0].connectionState).toBe('closed')
+      player.stop()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('hands off within seconds when the direct path never connects, and remembers it', async () => {
+    // Away from home the answer and its tracks arrive, but the private media
+    // address is unreachable; the wall must not wait for media timeouts.
+    vi.useFakeTimers()
+    try {
+      FakePeerConnection.connects = false
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('v=0', { status: 200 })))
+      const handoff = vi.fn()
+      const player = new WebRtcPlayer(fakeVideo(), '/webrtc', { onUnsupported: handoff })
+      player.start()
+
+      await vi.advanceTimersByTimeAsync(2_499)
+      expect(handoff).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(1)
+      expect(handoff).toHaveBeenCalledOnce()
+      expect(directRecentlyUnreachable()).toBe(true)
       player.stop()
     } finally {
       vi.useRealTimers()

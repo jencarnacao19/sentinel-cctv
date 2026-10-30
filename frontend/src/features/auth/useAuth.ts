@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { ApiError } from '@/api/client'
 import { authApi, queryKeys } from '@/api/endpoints'
+import { clearPosters } from '@/features/live/poster'
 
 /** Whether an administrator account exists. Decides setup wizard vs sign-in. */
 export function useAuthStatus() {
@@ -54,8 +55,9 @@ export function useLogout() {
     mutationFn: authApi.logout,
     onSuccess: () => {
       // Drop every cached response: the next user must not see the previous
-      // one's camera names or tokens.
+      // one's camera names, tokens or last camera frames.
       queryClient.clear()
+      clearPosters()
     },
   })
 }
