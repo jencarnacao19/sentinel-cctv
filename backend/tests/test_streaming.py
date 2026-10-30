@@ -22,9 +22,12 @@ from app.streaming import client as client_module
 from app.streaming import router as router_module
 from app.streaming.config import (
     G711_AUDIO_CODECS,
+    RELAY_USERNAME,
     SOURCE_SUFFIX,
     build_config,
     build_streams,
+    relay_password,
+    relay_url,
     render_config,
     stream_names,
     write_config,
@@ -162,6 +165,29 @@ class TestConfigDocument:
 
     def test_rtsp_relay_does_not_filter_g711_audio(self, settings: Settings) -> None:
         assert build_config(settings, [])["rtsp"]["default_query"] == "video&audio"
+
+    def test_home_assistant_live_opens_the_relay_to_the_lan_behind_a_password(
+        self, settings: Settings
+    ) -> None:
+        """go2rtc skips the password for loopback clients, so only the LAN needs it."""
+        settings.home_assistant_live = True
+        config = build_config(settings, [])
+        assert config["rtsp"]["listen"] == f":{settings.go2rtc_rtsp_port}"
+        assert config["rtsp"]["username"] == RELAY_USERNAME
+        assert config["rtsp"]["password"] == relay_password(settings)
+        assert config["api"]["listen"].startswith("127.0.0.1:")
+
+    def test_the_relay_password_is_stable_and_not_the_install_secret(
+        self, settings: Settings
+    ) -> None:
+        password = relay_password(settings)
+        assert password == relay_password(settings)
+        assert len(password) == 48
+        assert bytes.fromhex(password) not in settings.load_or_create_secret()
+
+    def test_the_relay_url_brackets_an_ipv6_host(self, settings: Settings) -> None:
+        url = relay_url(settings, "fd00::5", make_camera())
+        assert f"@[fd00::5]:{settings.go2rtc_rtsp_port}/cam_" in url
 
     def test_the_document_is_valid_yaml(self, settings: Settings) -> None:
         parsed = yaml.safe_load(render_config(settings, [make_camera()]))

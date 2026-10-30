@@ -17,6 +17,8 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 from app.cameras.service import resolve_stream_url
 from app.config import Settings
@@ -34,6 +36,10 @@ SUB_STREAM_SUFFIX = "_sub"
 #: which shows up as a stream that connects and immediately drops. Sentinel does
 #: not offer talk-back, so there is nothing to lose by refusing it.
 SOURCE_SUFFIX = "#backchannel=0"
+
+#: The user Home Assistant gives the RTSP relay when ``home_assistant_live`` is on.
+RELAY_USERNAME = "sentinel"
+_RELAY_PASSWORD_INFO = b"sentinel-cctv/rtsp-relay-password/v1"
 
 #: Every go2rtc API path ``app.streaming`` uses (``client.py`` and the live
 #: WebSocket proxy). go2rtc 1.9.12+ registers nothing outside this list.
@@ -114,8 +120,49 @@ def _aac_relay_source(name: str, host: str, port: int) -> str:
     return f"ffmpeg:rtsp://{host}:{port}/{name}?video&audio#audio=aac"
 
 
+def relay_password(settings: Settings) -> str:
+    """The RTSP relay's password, derived one-way from the install secret.
+
+    Stable across restarts without being stored anywhere, the same way
+    ``app.integrations.identity.install_id`` is.
+    """
+    return (
+        HKDF(algorithm=hashes.SHA256(), length=24, salt=None, info=_RELAY_PASSWORD_INFO)
+        .derive(settings.load_or_create_secret())
+        .hex()
+    )
+
+
+def relay_url(settings: Settings, host: str, camera: Camera) -> str:
+    """The URL Home Assistant opens for ``camera``: the substream when there is one."""
+    main, sub = stream_names(camera)
+    if ":" in host:
+        host = f"[{host}]"
+    return (
+        f"rtsp://{RELAY_USERNAME}:{relay_password(settings)}@{host}:"
+        f"{settings.go2rtc_rtsp_port}/{sub or main}"
+    )
+
+
 def build_config(settings: Settings, cameras: Iterable[Camera]) -> dict[str, Any]:
     """Build the whole go2rtc configuration document."""
+    rtsp: dict[str, Any] = {
+        "listen": f"{settings.go2rtc_host}:{settings.go2rtc_rtsp_port}",
+        # TCP interleaved: UDP loses packets on a busy home network and shows
+        # up as tearing in the recording.
+        # Do not apply the mp4 codec filter here. Many cameras expose G.711,
+        # which the recorder accepts and converts to AAC. Filtering at the
+        # relay used to discard audio before either consumer could see it.
+        "default_query": "video&audio",
+    }
+    if settings.home_assistant_live:
+        # go2rtc never asks a loopback client for the password, so Sentinel's
+        # own recorders and motion workers keep using the relay unchanged.
+        rtsp.update(
+            listen=f":{settings.go2rtc_rtsp_port}",
+            username=RELAY_USERNAME,
+            password=relay_password(settings),
+        )
     return {
         # Loopback only. go2rtc's built-in admin interface would otherwise be
         # reachable on the LAN with no authentication at all; the browser talks
@@ -128,15 +175,7 @@ def build_config(settings: Settings, cameras: Iterable[Camera]) -> dict[str, Any
             # never talk to go2rtc, only Sentinel's own server does.
             "allow_paths": list(GO2RTC_API_PATHS),
         },
-        "rtsp": {
-            "listen": f"{settings.go2rtc_host}:{settings.go2rtc_rtsp_port}",
-            # TCP interleaved: UDP loses packets on a busy home network and shows
-            # up as tearing in the recording.
-            # Do not apply the mp4 codec filter here. Many cameras expose G.711,
-            # which the recorder accepts and converts to AAC. Filtering at the
-            # relay used to discard audio before either consumer could see it.
-            "default_query": "video&audio",
-        },
+        "rtsp": rtsp,
         # WebRTC needs a port reachable from the browser, so this one does bind
         # on all interfaces. It carries media only, never control.
         "webrtc": {

@@ -12,13 +12,14 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import __version__
 from app.auth.deps import CurrentPrincipal
 from app.cameras.service import list_cameras
+from app.config import get_settings
 from app.database.models import Camera, CameraStatus, MotionEvent, RecordingMode
 from app.database.session import get_session
 from app.integrations.identity import install_id
@@ -33,6 +34,7 @@ from app.integrations.schemas import (
 from app.motion.manager import get_manager as get_motion_manager
 from app.motion.zones import detection_zones, parse_zones
 from app.recording.manager import get_manager as get_recording_manager
+from app.streaming.config import relay_url
 
 router = APIRouter(prefix="/integrations", tags=["home-assistant"])
 
@@ -85,12 +87,21 @@ def _capabilities(camera: Camera) -> HaCameraCapabilities:
     )
 
 
+def _stream_url(camera: Camera, host: str | None) -> str | None:
+    """The relay URL for Home Assistant, on the address it used to reach Sentinel."""
+    settings = get_settings()
+    if not (settings.home_assistant_live and host and camera.enabled and camera.main_stream_url):
+        return None
+    return relay_url(settings, host, camera)
+
+
 def _to_ha_camera(
     camera: Camera,
     *,
     motion_active: bool,
     active_zones: set[str],
     storage_suspended: bool,
+    host: str | None,
 ) -> HaCamera:
     return HaCamera(
         id=camera.id,
@@ -118,6 +129,7 @@ def _to_ha_camera(
             audio_codec=camera.audio_codec,
             bitrate_kbps=camera.bitrate_kbps,
         ),
+        stream_url=_stream_url(camera, host),
     )
 
 
@@ -127,7 +139,7 @@ def _to_ha_camera(
     summary="Home Assistant integration handshake",
 )
 async def home_assistant_handshake(
-    _: CurrentPrincipal, session: Annotated[AsyncSession, Depends(get_session)]
+    _: CurrentPrincipal, session: Annotated[AsyncSession, Depends(get_session)], request: Request
 ) -> HaHandshake:
     """Identity, protocol version and camera list, in one authenticated call.
 
@@ -152,6 +164,7 @@ async def home_assistant_handshake(
                 motion_active=camera.id in motion_active_ids,
                 active_zones=active_zones.get(camera.id, set()),
                 storage_suspended=storage_suspended,
+                host=request.url.hostname,
             )
             for camera in cameras
         ],

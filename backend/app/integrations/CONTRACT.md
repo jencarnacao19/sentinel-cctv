@@ -136,7 +136,8 @@ Authorization: Bearer sctv_xxx
         "fps": 15.0,
         "audio_codec": null,
         "bitrate_kbps": 2048
-      }
+      },
+      "stream_url": null
     }
   ]
 }
@@ -321,16 +322,15 @@ false assumption:
   succeeds after not being online, or newly fails after having been online.
   A camera that quietly stops answering between two such probes does not
   get an automatic `camera.offline` until the next one happens.
-* **There is no cross-host live video handed to Home Assistant.** go2rtc
-  binds `127.0.0.1` only and is not reachable from another machine — that
-  is deliberate (`app.streaming.manager`'s own docstring: its unauthenticated
-  admin API must never be reachable on the LAN). The browser gets live
-  video through Sentinel's own authenticated WebSocket proxy
-  (`/api/v1/streams/{id}/ws`, unchanged); a `camera` entity in Home Assistant
-  should use the snapshot endpoint above for a still image and link out to
-  Sentinel's own UI for actual live viewing, the same way the integration's
-  own `CameraInfo.stream_url` is left absent rather than pointing at
-  something that would not actually stream across hosts.
+* **Cross-host live video is opt-in.** By default go2rtc binds `127.0.0.1`
+  only and each camera's `stream_url` is `null`: a `camera` entity uses the
+  snapshot endpoint for a still image. With `SENTINEL_HOME_ASSISTANT_LIVE=true`,
+  go2rtc's RTSP relay (never its admin API) also listens on the LAN behind the
+  user `sentinel` and a password derived from the install secret, and
+  `stream_url` is `rtsp://sentinel:<password>@<host>:8554/<stream>`, where
+  `<host>` is the address the handshake was called on and `<stream>` is the
+  substream when there is one. Any principal that may call the handshake may
+  already watch live through `/api/v1/streams/{id}`, so this widens nothing.
 
 ## 6. Versioning
 

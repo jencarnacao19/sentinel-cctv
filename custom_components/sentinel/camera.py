@@ -1,8 +1,8 @@
 """One camera entity per Sentinel camera.
 
-Snapshots always come from Sentinel, never from the camera. A live-stream
-feature is advertised only if a future/server-compatible handshake supplies a
-playable URL; the current Sentinel contract deliberately does not expose one.
+Snapshots always come from Sentinel, never from the camera. A live stream is
+advertised only when the server's handshake supplies a URL, which Sentinel does
+with ``SENTINEL_HOME_ASSISTANT_LIVE`` on.
 """
 
 from __future__ import annotations
@@ -117,8 +117,8 @@ class SentinelCamera(SentinelEntity, Camera):
         """The RTSP URL Home Assistant should open -- Sentinel's, not the camera's.
 
         Returning ``None`` disables Home Assistant's stream pipeline while
-        leaving snapshots working. This is the normal state with the current
-        server contract, which intentionally exposes no cross-host stream URL.
+        leaving snapshots working, which is the state while the server has
+        ``SENTINEL_HOME_ASSISTANT_LIVE`` off.
         """
         camera = self.camera
         return camera.stream_url if camera else None

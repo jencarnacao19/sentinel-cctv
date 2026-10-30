@@ -19,7 +19,8 @@ services:
     # WS-Discovery is link-local multicast. Host networking lets Sentinel
     # probe the real LAN interface instead of Docker's private 172.x bridge.
     # The API still exposes only 8090, WebRTC only 8555, and go2rtc's
-    # unauthenticated API/RTSP listeners remain bound to 127.0.0.1.
+    # unauthenticated API/RTSP listeners remain bound to 127.0.0.1 (RTSP also
+    # listens on the LAN with a password when SENTINEL_HOME_ASSISTANT_LIVE is on).
     network_mode: host
 
     volumes:
@@ -49,6 +50,9 @@ services:
       # exact Home Assistant origin; never use a wildcard.
       SENTINEL_FRAME_ANCESTORS: ${SENTINEL_FRAME_ANCESTORS:-}
       SENTINEL_COOKIE_SECURE: ${SENTINEL_COOKIE_SECURE:-false}
+      # Live video for Home Assistant through go2rtc's password-protected RTSP
+      # relay on port 8554. See docs/home-assistant.md.
+      SENTINEL_HOME_ASSISTANT_LIVE: ${SENTINEL_HOME_ASSISTANT_LIVE:-false}
 
     # FFmpeg opens a handful of file descriptors per camera; the default soft
     # limit of 1024 is tight once you pass roughly twenty streams.

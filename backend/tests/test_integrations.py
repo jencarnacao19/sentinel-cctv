@@ -13,6 +13,7 @@ from app.config import Settings, get_settings
 from app.database.models import Camera, CameraStatus, MotionEvent
 from app.database.session import session_scope
 from app.integrations.identity import install_id
+from app.streaming.config import relay_password
 
 CAMERA_PAYLOAD = {
     "name": "Porch",
@@ -82,6 +83,48 @@ class TestHandshakeShape:
         )
         response = await admin_client.get("/api/v1/integrations/home-assistant")
         assert "hunter2" not in response.text
+
+
+class TestHandshakeLiveStream:
+    async def test_there_is_no_stream_url_unless_home_assistant_live_is_on(
+        self, admin_client: AsyncClient
+    ) -> None:
+        await admin_client.post("/api/v1/cameras", json=CAMERA_PAYLOAD)
+        body = (await admin_client.get("/api/v1/integrations/home-assistant")).json()
+        assert body["cameras"][0]["stream_url"] is None
+
+    async def test_home_assistant_gets_the_relay_substream_on_the_address_it_used(
+        self, admin_client: AsyncClient, settings: Settings
+    ) -> None:
+        settings.home_assistant_live = True
+        created = (
+            await admin_client.post(
+                "/api/v1/cameras",
+                json={
+                    **CAMERA_PAYLOAD,
+                    "sub_stream_url": "rtsp://192.168.50.50:554/stream2",
+                    "username": "admin",
+                    "password": "hunter2",
+                },
+            )
+        ).json()
+
+        response = await admin_client.get("/api/v1/integrations/home-assistant")
+        camera = next(c for c in response.json()["cameras"] if c["id"] == created["id"])
+        stream = f"cam_{created['id'].replace('-', '')}_sub"
+        assert camera["stream_url"] == (
+            f"rtsp://sentinel:{relay_password(settings)}@sentinel.test:"
+            f"{settings.go2rtc_rtsp_port}/{stream}"
+        )
+        assert "hunter2" not in response.text
+
+    async def test_a_disabled_camera_has_no_stream_url(
+        self, admin_client: AsyncClient, settings: Settings
+    ) -> None:
+        settings.home_assistant_live = True
+        await admin_client.post("/api/v1/cameras", json={**CAMERA_PAYLOAD, "enabled": False})
+        body = (await admin_client.get("/api/v1/integrations/home-assistant")).json()
+        assert body["cameras"][0]["stream_url"] is None
 
 
 class TestHandshakeCameras:

@@ -17,7 +17,7 @@ One device per camera, with:
 
 | Entity | What it does |
 | --- | --- |
-| `camera.<name>` | Snapshots served by Sentinel |
+| `camera.<name>` | Snapshots served by Sentinel, and live video when [enabled](#live-video-in-home-assistant) |
 | `binary_sensor.<name>_motion` | On the instant motion starts — pushed, not polled |
 | `binary_sensor.<name>_<zone>_motion` | One per detection zone, on while that zone sees motion |
 | `sensor.<name>_recording` | `recording`, `idle`, `off` or `unavailable` |
@@ -202,11 +202,28 @@ mDNS does not cross subnets, and some container network modes block multicast
 entirely. Add it manually — nothing is lost by doing so.
 
 **Why does the camera entity show snapshots rather than a live stream?**
-The current Sentinel/Home Assistant contract intentionally exposes authenticated
-snapshots but no Home Assistant stream URL. Live playback remains available in
-the Sentinel web interface. PTZ controls also live in that embedded interface;
-they are not separate Home Assistant entities or services. This is a current
-product boundary, not a Home Assistant configuration error.
+Live video in Home Assistant is off by default; see
+[Live video in Home Assistant](#live-video-in-home-assistant). PTZ controls live
+in the embedded Sentinel interface; they are not separate Home Assistant
+entities or services.
+
+## Live video in Home Assistant
+
+Set `SENTINEL_HOME_ASSISTANT_LIVE=true` in Sentinel's `.env`, restart Sentinel,
+then reload the integration. Each camera entity then streams natively: Home
+Assistant plays it over WebRTC at home and HLS elsewhere, and dashboards with
+`camera_view: live` start at once instead of loading a page first.
+
+- Home Assistant reads Sentinel's relay of the camera, the substream when there
+  is one, so no camera gets another connection.
+- The relay listens on port 8554 on the LAN with the user `sentinel` and a
+  password derived from Sentinel's install secret. Only the integration's
+  handshake hands it out, to the same token that may already watch live.
+- Add Sentinel to Home Assistant by its LAN address: the stream URL uses the
+  address Home Assistant called it on, and RTSP does not pass through an HTTPS
+  proxy.
+- RTSP credentials cross the LAN in the clear, as they do for the cameras
+  themselves. Leave the setting off on a network you do not trust.
 
 ## Updating a manual installation
 
