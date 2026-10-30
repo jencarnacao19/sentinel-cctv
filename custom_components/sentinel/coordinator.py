@@ -109,6 +109,8 @@ class SentinelDataUpdateCoordinator(DataUpdateCoordinator[SentinelData]):
             update_interval=timedelta(seconds=scan_interval_seconds),
         )
         self.client = client
+        self.server_device_id: str | None = None
+        """Registry id of the server device, set at setup before any platform."""
         self._configured_interval = timedelta(seconds=scan_interval_seconds)
         self._fallback_interval = timedelta(seconds=FALLBACK_SCAN_INTERVAL_SECONDS)
         self._last_event_seq: int | None = None
