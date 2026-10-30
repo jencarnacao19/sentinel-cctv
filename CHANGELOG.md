@@ -11,10 +11,23 @@ requirements are described in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 
 ### Added
 
-- **Live video in Home Assistant.** Each camera entity streams natively (WebRTC at home, HLS elsewhere) from
-  Sentinel's relay, protected by a password derived from the install secret,
-  instead of showing snapshots only. On by default; `SENTINEL_HOME_ASSISTANT_LIVE=false`
-  keeps the relay on loopback.
+- **Live video in Home Assistant.** Each camera entity streams natively
+  (WebRTC at home, HLS elsewhere) from Sentinel's relay, protected by a password
+  derived from the install secret, instead of showing snapshots only. On by
+  default; `SENTINEL_HOME_ASSISTANT_LIVE=false` keeps the relay on loopback.
+
+### Changed
+
+- **Live view starts over direct WebRTC.** On the home network the camera wall,
+  including the page embedded in Home Assistant, starts in well under a second
+  instead of waiting on MSE or HLS through the HTTPS proxy; away from home it
+  falls back to them after 2.5 seconds. Each camera shows its last frame from
+  this device while it connects.
+
+### Fixed
+
+- The Home Assistant integration loads every camera on Home Assistant 2026.10,
+  which refuses camera devices linked with `via_device`.
 
 ## [2.0.0] - 2026-10-18
 
