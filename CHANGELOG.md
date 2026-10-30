@@ -11,10 +11,10 @@ requirements are described in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 
 ### Added
 
-- **Live video in Home Assistant.** With `SENTINEL_HOME_ASSISTANT_LIVE=true`,
-  each camera entity streams natively (WebRTC at home, HLS elsewhere) from
+- **Live video in Home Assistant.** Each camera entity streams natively (WebRTC at home, HLS elsewhere) from
   Sentinel's relay, protected by a password derived from the install secret,
-  instead of showing snapshots only.
+  instead of showing snapshots only. On by default; `SENTINEL_HOME_ASSISTANT_LIVE=false`
+  keeps the relay on loopback.
 
 ## [2.0.0] - 2026-10-18
 

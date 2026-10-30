@@ -202,17 +202,17 @@ mDNS does not cross subnets, and some container network modes block multicast
 entirely. Add it manually — nothing is lost by doing so.
 
 **Why does the camera entity show snapshots rather than a live stream?**
-Live video in Home Assistant is off by default; see
+Live video in Home Assistant is turned off on that server; see
 [Live video in Home Assistant](#live-video-in-home-assistant). PTZ controls live
 in the embedded Sentinel interface; they are not separate Home Assistant
 entities or services.
 
 ## Live video in Home Assistant
 
-Set `SENTINEL_HOME_ASSISTANT_LIVE=true` in Sentinel's `.env`, restart Sentinel,
-then reload the integration. Each camera entity then streams natively: Home
-Assistant plays it over WebRTC at home and HLS elsewhere, and dashboards with
-`camera_view: live` start at once instead of loading a page first.
+It is on unless Sentinel's `.env` sets `SENTINEL_HOME_ASSISTANT_LIVE=false`.
+Each camera entity streams natively: Home Assistant plays it over WebRTC at home
+and HLS elsewhere, and dashboards with `camera_view: live` start at once instead
+of loading a page first.
 
 - Home Assistant reads Sentinel's relay of the camera, the substream when there
   is one, so no camera gets another connection.
@@ -223,7 +223,7 @@ Assistant plays it over WebRTC at home and HLS elsewhere, and dashboards with
   address Home Assistant called it on, and RTSP does not pass through an HTTPS
   proxy.
 - RTSP credentials cross the LAN in the clear, as they do for the cameras
-  themselves. Leave the setting off on a network you do not trust.
+  themselves. Turn the setting off on a network you do not trust.
 
 ## Updating a manual installation
 

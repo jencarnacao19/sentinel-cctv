@@ -20,7 +20,7 @@ services:
     # probe the real LAN interface instead of Docker's private 172.x bridge.
     # The API still exposes only 8090, WebRTC only 8555, and go2rtc's
     # unauthenticated API/RTSP listeners remain bound to 127.0.0.1 (RTSP also
-    # listens on the LAN with a password when SENTINEL_HOME_ASSISTANT_LIVE is on).
+    # listens on the LAN with a password unless SENTINEL_HOME_ASSISTANT_LIVE=false).
     network_mode: host
 
     volumes:
@@ -55,7 +55,7 @@ services:
       SENTINEL_ENABLE_TAPO_BATTERY_PROVIDER: ${SENTINEL_ENABLE_TAPO_BATTERY_PROVIDER:-false}
       # Live video for Home Assistant through go2rtc's password-protected RTSP
       # relay on port 8554. See docs/home-assistant.md.
-      SENTINEL_HOME_ASSISTANT_LIVE: ${SENTINEL_HOME_ASSISTANT_LIVE:-false}
+      SENTINEL_HOME_ASSISTANT_LIVE: ${SENTINEL_HOME_ASSISTANT_LIVE:-true}
 
     # FFmpeg opens a handful of file descriptors per camera; the default soft
     # limit of 1024 is tight once you pass roughly twenty streams.

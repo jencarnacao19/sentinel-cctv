@@ -135,6 +135,7 @@ class TestConfigDocument:
     def test_the_api_binds_to_loopback_only(self, settings: Settings) -> None:
         """go2rtc's admin interface has no authentication of its own; exposing it
         on the LAN would let anyone add a stream pointing at a local file."""
+        settings.home_assistant_live = False
         config = build_config(settings, [])
         assert config["api"]["listen"].startswith("127.0.0.1:")
         assert config["rtsp"]["listen"].startswith("127.0.0.1:")
@@ -170,7 +171,6 @@ class TestConfigDocument:
         self, settings: Settings
     ) -> None:
         """go2rtc skips the password for loopback clients, so only the LAN needs it."""
-        settings.home_assistant_live = True
         config = build_config(settings, [])
         assert config["rtsp"]["listen"] == f":{settings.go2rtc_rtsp_port}"
         assert config["rtsp"]["username"] == RELAY_USERNAME
