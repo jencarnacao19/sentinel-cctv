@@ -86,9 +86,10 @@ class TestHandshakeShape:
 
 
 class TestHandshakeLiveStream:
-    async def test_there_is_no_stream_url_unless_home_assistant_live_is_on(
-        self, admin_client: AsyncClient
+    async def test_there_is_no_stream_url_with_home_assistant_live_off(
+        self, admin_client: AsyncClient, settings: Settings
     ) -> None:
+        settings.home_assistant_live = False
         await admin_client.post("/api/v1/cameras", json=CAMERA_PAYLOAD)
         body = (await admin_client.get("/api/v1/integrations/home-assistant")).json()
         assert body["cameras"][0]["stream_url"] is None
@@ -96,7 +97,6 @@ class TestHandshakeLiveStream:
     async def test_home_assistant_gets_the_relay_substream_on_the_address_it_used(
         self, admin_client: AsyncClient, settings: Settings
     ) -> None:
-        settings.home_assistant_live = True
         created = (
             await admin_client.post(
                 "/api/v1/cameras",
@@ -121,7 +121,6 @@ class TestHandshakeLiveStream:
     async def test_a_disabled_camera_has_no_stream_url(
         self, admin_client: AsyncClient, settings: Settings
     ) -> None:
-        settings.home_assistant_live = True
         await admin_client.post("/api/v1/cameras", json={**CAMERA_PAYLOAD, "enabled": False})
         body = (await admin_client.get("/api/v1/integrations/home-assistant")).json()
         assert body["cameras"][0]["stream_url"] is None

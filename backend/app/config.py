@@ -116,11 +116,11 @@ class Settings(BaseSettings):
     manage_go2rtc: bool = True
     """When true Sentinel writes go2rtc.yaml and supervises the process."""
 
-    home_assistant_live: bool = False
+    home_assistant_live: bool = True
     """Give Home Assistant a live RTSP URL for each camera.
 
-    go2rtc's RTSP relay then also listens on the LAN, behind a password derived
-    from the install secret, so Home Assistant plays cameras natively without a
+    go2rtc's RTSP relay also listens on the LAN, behind a password derived from
+    the install secret, so Home Assistant plays cameras natively without a
     second connection to any camera. Off keeps the relay on loopback and gives
     Home Assistant snapshots only.
     """
