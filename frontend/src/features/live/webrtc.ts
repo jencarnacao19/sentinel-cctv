@@ -1,17 +1,43 @@
 /**
- * Low-latency live player for browsers without Media Source Extensions.
+ * The first live player every browser tries.
  *
- * This is the first path an iPhone and the Home Assistant WebView try. A LAN
- * peer keeps WebRTC's low latency; a remote peer that cannot reach the private
- * media candidate hands off to same-origin HTTPS HLS instead of spinning.
+ * On the home network the browser reaches go2rtc directly and the picture
+ * starts in a fraction of a second. A remote peer that cannot reach the private
+ * media candidate hands off to the same-origin HTTPS players instead of
+ * spinning, and later players skip it for a while.
  */
 
 import { Backoff } from '@/features/live/reconnect'
 import type { PlayerEvents } from '@/features/live/mse'
 
 const ICE_GATHER_TIMEOUT_MS = 2_000
+/** A LAN peer connects in well under a second; past this it is not reachable. */
+const ICE_CONNECT_TIMEOUT_MS = 2_500
 const DISCONNECTED_RETRY_MS = 5_000
 const MEDIA_ESTABLISH_TIMEOUT_MS = 8_000
+
+const UNREACHABLE_KEY = 'sentinel.webrtc.unreachable-at'
+/** Long enough that one page of cameras pays the wait once, short enough that
+ *  a phone carried back home goes direct again without a reload. */
+const UNREACHABLE_FOR_MS = 5 * 60_000
+
+/** True when a direct session recently failed to connect on this network. */
+export function directRecentlyUnreachable(): boolean {
+  try {
+    const at = Number(window.sessionStorage.getItem(UNREACHABLE_KEY))
+    return at > 0 && Date.now() - at < UNREACHABLE_FOR_MS
+  } catch {
+    return false
+  }
+}
+
+function markDirectUnreachable(): void {
+  try {
+    window.sessionStorage.setItem(UNREACHABLE_KEY, String(Date.now()))
+  } catch {
+    // Storage blocked: every player simply tries direct first.
+  }
+}
 
 /**
  * Consecutive signalling failures after which HTTPS takes over.
@@ -51,6 +77,7 @@ export class WebRtcPlayer {
   private abort: AbortController | null = null
   private disconnectedTimer: number | null = null
   private establishTimer: number | null = null
+  private connectTimer: number | null = null
   private stopped = false
   private readonly backoff = new Backoff()
   /** Bumped on every stop and every reconnect, so a late async continuation
@@ -99,6 +126,10 @@ export class WebRtcPlayer {
       window.clearTimeout(this.establishTimer)
       this.establishTimer = null
     }
+    if (this.connectTimer !== null) {
+      window.clearTimeout(this.connectTimer)
+      this.connectTimer = null
+    }
     this.abort?.abort()
     this.abort = null
     this.peer?.close()
@@ -129,6 +160,7 @@ export class WebRtcPlayer {
 
   private handoffToHttps(): void {
     if (this.stopped) return
+    markDirectUnreachable()
     this.teardown()
     if (this.events.onUnsupported) {
       this.events.onStateChange?.(
@@ -158,6 +190,21 @@ export class WebRtcPlayer {
         if (!this.superseded(generation) && !this.everConnected) this.handoffToHttps()
       }, MEDIA_ESTABLISH_TIMEOUT_MS)
 
+      // A track alone arrives with the answer, before any packet crosses the
+      // network, and a connected transport alone may carry no video. Only both
+      // together earn a cold network unlimited reconnects.
+      const established = () => {
+        if (this.everConnected || this.superseded(generation)) return
+        if (peer.connectionState !== 'connected' || !this.stream?.getTracks().length) return
+        this.everConnected = true
+        for (const timer of [this.establishTimer, this.connectTimer]) {
+          if (timer !== null) window.clearTimeout(timer)
+        }
+        this.establishTimer = null
+        this.connectTimer = null
+        this.backoff.reset()
+      }
+
       peer.addTransceiver('video', { direction: 'recvonly' })
       peer.addTransceiver('audio', { direction: 'recvonly' })
       peer.addEventListener('track', (event) => {
@@ -166,14 +213,7 @@ export class WebRtcPlayer {
         if (!stream.getTracks().some((track) => track.id === event.track.id)) {
           stream.addTrack(event.track)
         }
-        // A connected ICE transport is not proof that video arrived. The
-        // track is: only here does a cold network earn unlimited reconnects.
-        this.everConnected = true
-        if (this.establishTimer !== null) {
-          window.clearTimeout(this.establishTimer)
-          this.establishTimer = null
-        }
-        this.backoff.reset()
+        established()
         void this.video.play().then(
           () => this.events.onStateChange?.('playing'),
           () =>
@@ -190,6 +230,7 @@ export class WebRtcPlayer {
             window.clearTimeout(this.disconnectedTimer)
             this.disconnectedTimer = null
           }
+          established()
         } else if (peer.connectionState === 'failed') {
           this.scheduleReconnect('The mobile live stream failed. Reconnecting…')
         } else if (peer.connectionState === 'disconnected') {
@@ -228,6 +269,14 @@ export class WebRtcPlayer {
 
       const answer = await response.text()
       if (this.superseded(generation)) return
+      if (!this.everConnected) {
+        this.connectTimer = window.setTimeout(() => {
+          this.connectTimer = null
+          if (!this.superseded(generation) && peer.connectionState !== 'connected') {
+            this.handoffToHttps()
+          }
+        }, ICE_CONNECT_TIMEOUT_MS)
+      }
       await peer.setRemoteDescription({ type: 'answer', sdp: answer })
     } catch (error) {
       if (this.superseded(generation)) return

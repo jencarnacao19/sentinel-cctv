@@ -10,6 +10,7 @@ const calls = vi.hoisted(() => ({
   hlsStops: 0,
   preferHls: false,
   webRtcFallsBack: false,
+  directUnreachable: false,
 }))
 
 vi.mock('@/features/live/mse', () => ({
@@ -39,6 +40,7 @@ vi.mock('@/features/live/mse', () => ({
 
 vi.mock('@/features/live/webrtc', () => ({
   isWebRtcSupported: () => true,
+  directRecentlyUnreachable: () => calls.directUnreachable,
   WebRtcPlayer: class {
     private readonly events: { onUnsupported?: () => void }
 
@@ -86,43 +88,54 @@ describe('VideoPlayer transport fallback', () => {
     calls.hlsStops = 0
     calls.preferHls = false
     calls.webRtcFallsBack = false
+    calls.directUnreachable = false
   })
 
-  it('uses same-origin native HLS first on Apple mobile browsers', async () => {
-    calls.preferHls = true
+  it('starts with the direct WebRTC stream and nothing else when it connects', async () => {
     const view = render(<VideoPlayer cameraId="camera-1" cameraName="Front door" viewer />)
 
-    await waitFor(() => expect(calls.hlsStarts).toBe(1))
+    await waitFor(() => expect(calls.webRtcStarts).toBe(1))
     expect(calls.mseStarts).toBe(0)
-    expect(calls.webRtcStarts).toBe(0)
+    expect(calls.hlsStarts).toBe(0)
 
     view.unmount()
-    expect(calls.hlsStops).toBe(1)
+    expect(calls.webRtcStops).toBe(1)
   })
 
-  it('moves from WebRTC to same-origin HTTPS when direct media cannot arrive', async () => {
+  it('falls back to native HLS on Apple mobile browsers away from home', async () => {
+    calls.preferHls = true
     calls.webRtcFallsBack = true
-    const view = render(
-      <VideoPlayer cameraId="camera-1" cameraName="Front door" viewer />,
-    )
+    const view = render(<VideoPlayer cameraId="camera-1" cameraName="Front door" viewer />)
 
     await waitFor(() => expect(calls.hlsStarts).toBe(1))
     expect(calls.webRtcStarts).toBe(1)
     expect(calls.webRtcStops).toBe(1)
+    expect(calls.mseStarts).toBe(0)
 
     view.unmount()
     expect(calls.hlsStops).toBe(1)
   })
 
-  it('hands an unsupported MSE stream to WebRTC and cleans both players up', async () => {
+  it('falls back to MSE, then HLS, and cleans every player up', async () => {
+    calls.webRtcFallsBack = true
     const view = render(<VideoPlayer cameraId="camera-1" cameraName="Front door" />)
 
-    await waitFor(() => expect(calls.webRtcStarts).toBe(1))
+    await waitFor(() => expect(calls.hlsStarts).toBe(1))
+    expect(calls.webRtcStops).toBe(1)
     expect(calls.mseStarts).toBe(1)
     expect(calls.mseStops).toBe(1)
 
     view.unmount()
-    expect(calls.webRtcStops).toBe(1)
+    expect(calls.hlsStops).toBe(1)
+  })
+
+  it('skips the direct stream while it is known to be unreachable', async () => {
+    calls.directUnreachable = true
+    const view = render(<VideoPlayer cameraId="camera-1" cameraName="Front door" />)
+
+    await waitFor(() => expect(calls.mseStarts).toBe(1))
+    expect(calls.webRtcStarts).toBe(0)
+    view.unmount()
   })
 
   it('falls back to a full-viewport theatre layer when mobile fullscreen is unavailable', () => {
