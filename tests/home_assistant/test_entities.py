@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from homeassistant.const import ATTR_SUPPORTED_FEATURES
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -61,3 +62,14 @@ async def test_loaded_entities_use_honest_stream_and_count_metadata(
     assert recording_state is not None
     assert recording_state.state == "recording"
     assert recording_state.attributes["options"] == list(RECORDING_STATES)
+
+
+async def test_camera_devices_hang_off_the_server_device(
+    hass: HomeAssistant, loaded_entry: MockConfigEntry
+) -> None:
+    devices = dr.async_get(hass)
+    server = devices.async_get_device(identifiers={(DOMAIN, SERVER_ID)})
+    camera = devices.async_get_device(identifiers={(DOMAIN, f"{SERVER_ID}:cam-1")})
+    assert server is not None
+    assert camera is not None
+    assert camera.via_device_id == server.id

@@ -58,7 +58,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SentinelConfigEntry) -> 
     # a camera reference a via_device that does not exist yet. Home Assistant
     # warns about that today and rejects it in newer releases.
     server = coordinator.data.server
-    dr.async_get(hass).async_get_or_create(
+    server_device = dr.async_get(hass).async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, server.unique_id)},
         name=server.name or "Sentinel CCTV",
@@ -67,6 +67,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SentinelConfigEntry) -> 
         sw_version=server.version,
         configuration_url=coordinator.client.base_url,
     )
+    coordinator.server_device_id = server_device.id
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_reload_on_options_change))

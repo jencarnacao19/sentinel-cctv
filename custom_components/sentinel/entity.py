@@ -34,7 +34,7 @@ def server_device_info(coordinator: SentinelDataUpdateCoordinator) -> DeviceInfo
 def camera_device_info(
     coordinator: SentinelDataUpdateCoordinator, camera_id: str
 ) -> DeviceInfo:
-    """One device per camera, linked to the server device via ``via_device``.
+    """One device per camera, linked to the server device.
 
     Identified by the camera's own id rather than by name: Sentinel lets a
     camera be renamed, and a device identifier that changed with it would
@@ -49,8 +49,14 @@ def camera_device_info(
         manufacturer=(camera.manufacturer if camera is not None else None)
         or MANUFACTURER,
         model=(camera.model if camera is not None else None) or "Camera",
-        via_device=(DOMAIN, server.unique_id),
     )
+    # Home Assistant 2026.10 refuses to add a device given `via_device`; older
+    # releases do not know `via_device_id`.
+    if "via_device_id" in DeviceInfo.__optional_keys__:
+        if coordinator.server_device_id is not None:
+            info["via_device_id"] = coordinator.server_device_id
+    else:
+        info["via_device"] = (DOMAIN, server.unique_id)
     return info
 
 
