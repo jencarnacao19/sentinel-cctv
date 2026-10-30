@@ -57,7 +57,9 @@ function RequireAuth({ children }: { children: ReactNode }) {
 /** The camera wall is public only inside its separate viewer security boundary. */
 function RequireInitialisedViewer({ children }: { children: ReactNode }) {
   const status = useAuthStatus()
-  if (status.isPending) return <FullPageSpinner />
+  // The wall does not wait for this answer. Behind an access proxy that keeps
+  // the administration API private it never arrives, and waiting for its retry
+  // cost every opening of the Home Assistant panel a second.
   if (status.data && !status.data.initialised) return <Navigate to="/setup" replace />
   return <>{children}</>
 }
