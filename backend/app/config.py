@@ -215,34 +215,7 @@ class Settings(BaseSettings):
     @field_validator("frame_ancestors", mode="after")
     @classmethod
     def _validate_frame_ancestors(cls, value: list[str]) -> list[str]:
-        validated: list[str] = []
-        for origin in value:
-            parsed = urlsplit(origin)
-            hostname = parsed.hostname or ""
-            local_http = False
-            if parsed.scheme == "http":
-                if hostname == "localhost" or hostname.endswith(".local"):
-                    local_http = True
-                else:
-                    with contextlib.suppress(ValueError):
-                        address = ipaddress.ip_address(hostname)
-                        local_http = (
-                            address.is_private or address.is_loopback or address.is_link_local
-                        )
-            if (
-                (parsed.scheme != "https" and not local_http)
-                or not parsed.netloc
-                or parsed.username is not None
-                or parsed.password is not None
-                or parsed.path not in ("", "/")
-                or parsed.query
-                or parsed.fragment
-            ):
-                raise ValueError(
-                    "frame_ancestors entries must be HTTPS origins or private local HTTP origins"
-                )
-            validated.append(origin.rstrip("/"))
-        return validated
+        return [validate_frame_ancestor(origin) for origin in value]
 
     @field_validator("viewer_key", mode="before")
     @classmethod
@@ -325,6 +298,33 @@ class Settings(BaseSettings):
         with contextlib.suppress(OSError, NotImplementedError):
             path.chmod(0o600)
         return secret
+
+
+def validate_frame_ancestor(origin: str) -> str:
+    """One origin allowed to embed Sentinel: HTTPS, or HTTP on a private address."""
+    parsed = urlsplit(origin)
+    hostname = parsed.hostname or ""
+    local_http = False
+    if parsed.scheme == "http":
+        if hostname == "localhost" or hostname.endswith(".local"):
+            local_http = True
+        else:
+            with contextlib.suppress(ValueError):
+                address = ipaddress.ip_address(hostname)
+                local_http = address.is_private or address.is_loopback or address.is_link_local
+    if (
+        (parsed.scheme != "https" and not local_http)
+        or not parsed.netloc
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path not in ("", "/")
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ValueError(
+            "frame_ancestors entries must be HTTPS origins or private local HTTP origins"
+        )
+    return origin.rstrip("/")
 
 
 @lru_cache(maxsize=1)
