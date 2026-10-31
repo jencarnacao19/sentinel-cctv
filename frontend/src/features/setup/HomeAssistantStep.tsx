@@ -90,7 +90,17 @@ export function HomeAssistantStep({
       <li>
         <p className="font-medium">1. Install the integration</p>
         <p className="text-(--color-fg-muted)">
-          In HACS, search for <em>Sentinel CCTV</em>, download it and restart Home Assistant.
+          In{' '}
+          <a
+            href="https://hacs.xyz"
+            target="_blank"
+            rel="noreferrer"
+            className="underline underline-offset-2"
+          >
+            HACS
+          </a>{' '}
+          (the community store for Home Assistant), search for <em>Sentinel CCTV</em>, download it
+          and restart Home Assistant.
         </p>
         <HomeAssistantLink
           path="hacs_repository/?owner=jencarnacao19&repository=sentinel-cctv&category=integration"
