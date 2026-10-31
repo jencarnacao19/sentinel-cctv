@@ -49,6 +49,7 @@ EventName = Literal[
     "storage.critical",
     "camera.added",
     "camera.removed",
+    "automations.changed",
 ]
 
 EVENT_NAMES: Final[tuple[EventName, ...]] = get_args(EventName)
@@ -66,6 +67,8 @@ RECORDING_STARTED: Final[EventName] = "recording.started"
 RECORDING_STOPPED: Final[EventName] = "recording.stopped"
 STORAGE_WARNING: Final[EventName] = "storage.warning"
 STORAGE_CRITICAL: Final[EventName] = "storage.critical"
+#: The Home Assistant automation recipes were saved; the integration syncs them.
+AUTOMATIONS_CHANGED: Final[EventName] = "automations.changed"
 
 #: Per-subscriber backlog. Deep enough to absorb a burst from every camera at
 #: once, shallow enough that a hundred stalled sockets are still megabytes.
