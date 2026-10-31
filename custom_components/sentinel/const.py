@@ -91,6 +91,10 @@ EVENT_TYPE_STORAGE_WARNING: Final = "storage.warning"
 EVENT_TYPE_STORAGE_CRITICAL: Final = "storage.critical"
 EVENT_TYPE_CAMERA_ADDED: Final = "camera.added"
 EVENT_TYPE_CAMERA_REMOVED: Final = "camera.removed"
+EVENT_TYPE_AUTOMATIONS_CHANGED: Final = "automations.changed"
+
+#: Option: let Sentinel write the automations its administrator arranged. Off by default.
+CONF_ALLOW_AUTOMATIONS: Final = "allow_automations"
 
 #: Frames that change the camera list, recording state or storage figures in
 #: ways only REST can describe; each one triggers a coordinator refresh rather

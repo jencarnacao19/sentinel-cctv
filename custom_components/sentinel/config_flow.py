@@ -43,6 +43,7 @@ from .api import (
     normalise_base_url,
 )
 from .const import (
+    CONF_ALLOW_AUTOMATIONS,
     CONF_TOKEN,
     CONF_URL,
     DEFAULT_NAME,
@@ -270,6 +271,12 @@ class SentinelOptionsFlow(OptionsFlow):
                         min=MIN_SCAN_INTERVAL_SECONDS, max=MAX_SCAN_INTERVAL_SECONDS
                     ),
                 ),
+                vol.Optional(
+                    CONF_ALLOW_AUTOMATIONS,
+                    default=self.config_entry.options.get(
+                        CONF_ALLOW_AUTOMATIONS, False
+                    ),
+                ): bool,
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)

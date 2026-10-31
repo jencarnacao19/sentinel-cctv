@@ -47,7 +47,8 @@
         "title": "Sentinel CCTV options",
         "description": "Sentinel pushes changes over a WebSocket, so this interval only matters while that connection is down.",
         "data": {
-          "scan_interval": "Fallback poll interval (seconds)"
+          "scan_interval": "Fallback poll interval (seconds)",
+          "allow_automations": "Let Sentinel create automations"
         }
       }
     }
