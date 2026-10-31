@@ -1,12 +1,12 @@
 import { BatteryCharging, Video } from 'lucide-react'
-import { useState } from 'react'
 
 import { ApiError } from '@/api/client'
 import { EmptyState } from '@/components/EmptyState'
 import { Alert } from '@/components/ui/alert'
 import { Segmented } from '@/components/ui/segmented'
 import { CameraTile, CameraTileSkeleton } from '@/features/live/CameraTile'
-import { columnsFor, LAYOUT_OPTIONS, type Layout } from '@/features/live/layout'
+import { columnsFor, WALL_OPTIONS } from '@/features/live/layout'
+import { useWall } from '@/features/live/useWall'
 import { VideoPlayer } from '@/features/live/VideoPlayer'
 import { ViewerNav } from '@/features/viewer/ViewerNav'
 import { ViewerSignIn } from '@/features/viewer/ViewerSignIn'
@@ -18,8 +18,8 @@ import { cn } from '@/lib/utils'
 export function ViewerPage() {
   const cameras = useViewerCameras()
   const system = useViewerSystemStatus()
-  const [layout, setLayout] = useState<Layout>('auto')
-  const list = cameras.data ?? []
+  const wall = useWall(cameras.data ?? [], cameras.isSuccess)
+  const { list, layout } = wall
   const rtspCount = list.filter((camera) => camera.kind === 'rtsp').length
   const columns = columnsFor(layout, list.length)
   const useSubstream = layout !== '1' && rtspCount > 1
@@ -44,9 +44,9 @@ export function ViewerPage() {
           {list.length > 1 ? (
             <Segmented
               ariaLabel="Grid layout"
-              value={layout}
-              onChange={setLayout}
-              options={LAYOUT_OPTIONS}
+              value={wall.choice}
+              onChange={wall.setChoice}
+              options={WALL_OPTIONS}
             />
           ) : null}
         </div>
@@ -67,7 +67,7 @@ export function ViewerPage() {
           </Alert>
         ) : null}
 
-        {denied ? null : cameras.isPending ? (
+        {denied ? null : cameras.isPending || !wall.settled ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 3 }, (_, index) => (
               <CameraTileSkeleton key={index} />

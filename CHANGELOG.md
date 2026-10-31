@@ -21,6 +21,9 @@ requirements are described in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
   integration below. No `.env` editing: a key and addresses set there keep
   working. Only a fingerprint of the link's key is stored, and a new link stops
   the old one.
+- **Arrange the camera wall.** Configure → Camera wall chooses which cameras
+  every wall shows, their order and the default grid. On the wall, Default
+  follows it and 1–4 per row stays a per-device choice.
 - **Switch between the stable and the dev build.** Settings → Build asks for the
   build's name in capitals, then a small helper the installer adds inside the
   container backs up the database and `compose.yml`, switches the image and

@@ -105,6 +105,18 @@ presets and native tours never call an external service. Optional remote/cloud
 features must run outside this request path and may fail without changing local
 video, recording or camera control.
 
+## Arranging the camera wall
+
+**Configure → Camera wall** sets which cameras every wall shows — the Home
+Assistant panel, the viewer page and Live — in what order, and the default grid.
+Arrows move a camera up or down, so it works the same with a thumb, a mouse or a
+keyboard, and nothing changes until **Save**. A hidden camera keeps recording
+and stays in playback; it only leaves the wall. A camera added later appears at
+the end.
+
+On the wall itself, **Default** follows that grid; anyone watching can pick 1,
+2, 3 or 4 per row instead, and that choice is remembered on their device.
+
 ## Turning one camera's recording on or off
 
 Each ordinary camera row on the **Cameras** page carries a recording switch, so

@@ -526,3 +526,11 @@ export interface BuildChannelState {
   /** When the host helper last looked for a request; null when it is not installed. */
   helper_seen_at: string | null
 }
+
+/** The administrator's arrangement of the camera wall. */
+export interface WallLayout {
+  columns: 'auto' | '1' | '2x2' | '3x3' | '4x4'
+  /** Camera ids in wall order; cameras missing here follow in their usual order. */
+  order: string[]
+  hidden: string[]
+}

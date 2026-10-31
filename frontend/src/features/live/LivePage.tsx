@@ -10,7 +10,8 @@ import { Segmented } from '@/components/ui/segmented'
 import { TapoBatteryDialog } from '@/features/cameras/TapoBatteryDialog'
 import { useCameras } from '@/features/cameras/useCameras'
 import { CameraTile, CameraTileSkeleton } from '@/features/live/CameraTile'
-import { columnsFor, LAYOUT_OPTIONS, type Layout } from '@/features/live/layout'
+import { columnsFor, WALL_OPTIONS } from '@/features/live/layout'
+import { useWall } from '@/features/live/useWall'
 import { VideoPlayer } from '@/features/live/VideoPlayer'
 import { usePrivacyMode } from '@/features/privacy/usePrivacyMode'
 import { cn } from '@/lib/utils'
@@ -35,10 +36,9 @@ const STATUS_TEXT: Record<Camera['status'], string> = {
 export function LivePage() {
   const cameras = useCameras(true)
   const privacy = usePrivacyMode()
-  const [layout, setLayout] = useState<Layout>('auto')
   const [batteryCamera, setBatteryCamera] = useState<Camera | null>(null)
-
-  const list = cameras.data ?? []
+  const wall = useWall(cameras.data ?? [])
+  const { list, layout } = wall
   const rtspCount = list.filter((camera) => camera.kind === 'rtsp').length
   const columns = columnsFor(layout, list.length)
   const paused = privacy.data?.enabled === true
@@ -62,9 +62,9 @@ export function LivePage() {
           list.length > 1 ? (
             <Segmented
               ariaLabel="Grid layout"
-              value={layout}
-              onChange={setLayout}
-              options={LAYOUT_OPTIONS}
+              value={wall.choice}
+              onChange={wall.setChoice}
+              options={WALL_OPTIONS}
             />
           ) : null
         }
@@ -77,7 +77,7 @@ export function LivePage() {
         </Alert>
       ) : null}
 
-      {cameras.isPending ? (
+      {cameras.isPending || !wall.settled ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 3 }, (_, index) => (
             <CameraTileSkeleton key={index} />
