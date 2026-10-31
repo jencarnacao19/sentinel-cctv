@@ -32,6 +32,7 @@ from app.config import Settings, get_settings
 from app.database.bootstrap import upgrade_to_head_async
 from app.database.session import check_database, dispose_engine, get_engine, session_scope
 from app.integrations import mdns
+from app.integrations.panel import load_panel_state, panel_ancestors
 from app.logging_config import configure_logging, get_logger
 from app.motion.cleanup import get_manager as get_event_cleanup_manager
 from app.motion.manager import get_manager as get_motion_manager
@@ -101,6 +102,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # explicitly paused.
     async with session_scope() as session:
         await privacy.get_manager().load(session)
+        await load_panel_state(session)
     await privacy.get_manager().apply_loaded_state()
 
     # Keep one small HTTP connection pool for ONVIF controls. A PTZ button
@@ -278,7 +280,7 @@ def _cross_site_cookie_request(request: Request, settings: Settings) -> bool:
 
 
 def _content_security_policy(settings: Settings) -> str:
-    ancestors = ["'self'", *settings.frame_ancestors]
+    ancestors = list(dict.fromkeys(["'self'", *settings.frame_ancestors, *panel_ancestors()]))
     return "; ".join(
         [
             "default-src 'self'",

@@ -41,7 +41,12 @@ from app.reliability.schemas import ViewerReliabilityResponse, viewer_response
 from app.storage.metrics import collect_recording_telemetry, estimate_retention_days
 from app.storage.root import check_storage, get_storage_root
 from app.system import health, privacy, settings_store
-from app.viewer.auth import VIEWER_COOKIE_NAME, CurrentViewer, authorise_viewer
+from app.viewer.auth import (
+    VIEWER_COOKIE_NAME,
+    CurrentViewer,
+    authorise_viewer,
+    matching_viewer_key,
+)
 from app.viewer.schemas import ViewerCameraResponse, ViewerExportCreate
 
 router = APIRouter(prefix="/viewer", tags=["viewer"])
@@ -186,10 +191,15 @@ async def create_viewer_session(
     access = await authorise_viewer(request, session, settings, supplied_key=supplied_key)
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
     cookie_samesite: Literal["none", "lax"] = "none" if settings.cookie_secure else "lax"
-    if access.kind == "viewer_key" and settings.viewer_key is not None:
+    viewer_key = (
+        matching_viewer_key(request, settings, supplied_key)
+        if access.kind == "viewer_key"
+        else None
+    )
+    if viewer_key is not None:
         response.set_cookie(
             key=VIEWER_COOKIE_NAME,
-            value=settings.viewer_key.get_secret_value(),
+            value=viewer_key,
             httponly=True,
             secure=settings.cookie_secure,
             # The Home Assistant panel embeds the configured viewer hostname cross-site.

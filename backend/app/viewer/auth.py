@@ -21,6 +21,7 @@ from starlette.requests import HTTPConnection
 from app.auth.deps import get_session_user
 from app.config import Settings, get_settings
 from app.database.session import get_session
+from app.integrations.panel import panel_key_matches, panel_link_exists
 from app.viewer.cloudflare import valid_cloudflare_assertion
 
 VIEWER_KEY_HEADER = "X-Sentinel-Viewer-Key"
@@ -98,17 +99,22 @@ def _supplied_viewer_keys(connection: HTTPConnection) -> list[str]:
     return supplied
 
 
-def _valid_viewer_key(
+def _viewer_key_matches(settings: Settings, candidate: str) -> bool:
+    """The deployment's key or the panel link created in the administration."""
+    configured = settings.viewer_key
+    if configured is not None and secrets.compare_digest(configured.get_secret_value(), candidate):
+        return True
+    return panel_key_matches(candidate)
+
+
+def matching_viewer_key(
     connection: HTTPConnection,
     settings: Settings,
     supplied_key: str | None = None,
-) -> bool:
-    configured = settings.viewer_key
-    if configured is None:
-        return False
+) -> str | None:
+    """The supplied key that proves viewer access, if any."""
     candidates = [supplied_key] if supplied_key else _supplied_viewer_keys(connection)
-    expected = configured.get_secret_value()
-    return any(secrets.compare_digest(expected, candidate) for candidate in candidates)
+    return next((key for key in candidates if _viewer_key_matches(settings, key)), None)
 
 
 def matching_viewer_subprotocol(
@@ -121,11 +127,8 @@ def matching_viewer_subprotocol(
     standards-based handshake field browsers do expose, and unlike query
     parameters they are not written to the request URL or normal access logs.
     """
-    if settings.viewer_key is None:
-        return None
-    expected = settings.viewer_key.get_secret_value()
     for protocol, candidate in _viewer_subprotocols(connection):
-        if secrets.compare_digest(expected, candidate):
+        if _viewer_key_matches(settings, candidate):
             return protocol
     return None
 
@@ -146,9 +149,11 @@ async def authorise_viewer(
         # depend on the remote viewer being enabled.
         return ViewerAccess(kind="administrator" if account.is_admin else "viewer_account")
 
-    if not settings.viewer_enabled:
+    # A panel link created in the administration is itself the decision to
+    # open the viewer, so it does not also need SENTINEL_VIEWER_ENABLED.
+    if not (settings.viewer_enabled or panel_link_exists()):
         raise _VIEWER_DENIED
-    if _valid_viewer_key(connection, settings, supplied_key):
+    if matching_viewer_key(connection, settings, supplied_key) is not None:
         return ViewerAccess(kind="viewer_key")
     if await _trusted_cloudflare_request(connection, settings):
         return ViewerAccess(kind="cloudflare_access")
