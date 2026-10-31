@@ -1301,6 +1301,8 @@ update_existing_container() {
 	note "compose.yml on disk is left exactly as it is; only the image is refreshed."
 	run pct exec "$CTID" -- sh -c "cd '$INSTALL_DIR' && docker compose pull && docker compose up -d" ||
 		die "Update failed inside container $CTID. Inspect it with: pct enter $CTID"
+	install_channel_helper ||
+		warn "The helper for switching builds from the administration could not be installed."
 
 	wait_for_sentinel
 	final_message_updated
@@ -1599,6 +1601,150 @@ PROVISION
 	} >"$path"
 }
 
+# Writes the host half of the administration's build switch into $1: the
+# helper and the systemd service and timer that run it every 30 seconds.
+#
+# Sentinel never gets the Docker socket, which would be root on this host. It
+# only writes update-request.json into its data volume; the helper, running as
+# root here, moves the Sentinel image in compose.yml between :latest and :dev,
+# backs up the database first, recreates the container and restores the old
+# compose file if the new build does not come up healthy.
+write_channel_helper() {
+	local dir="$1"
+	cat >"$dir/sentinel-channel" <<'HELPER'
+#!/bin/sh
+# Applies a build switch asked for in the Sentinel administration.
+# Installed by install-proxmox.sh; runs from sentinel-channel.timer.
+set -u
+
+CONTAINER="${SENTINEL_CONTAINER:-sentinel}"
+REPO="ghcr.io/jencarnacao19/sentinel-cctv"
+
+# Points the one Sentinel image line of a compose file at the channel's tag.
+retag() {
+	tag=latest
+	[ "$2" = dev ] && tag=dev
+	grep -Eq "^[[:space:]]*image:[[:space:]]*$REPO:[A-Za-z0-9._-]+[[:space:]]*\$" "$1" || return 1
+	sed -i -E "s#^([[:space:]]*image:[[:space:]]*$REPO):[A-Za-z0-9._-]+[[:space:]]*\$#\\1:$tag#" "$1"
+}
+
+if [ "${1:-}" = "--retag" ]; then
+	retag "$2" "$3"
+	exit $?
+fi
+
+now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+label() { docker inspect -f "{{index .Config.Labels \"$1\"}}" "$CONTAINER"; }
+
+data="$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}' "$CONTAINER" 2>/dev/null)" || exit 0
+[ -n "$data" ] || exit 0
+printf '{"seen_at": "%s"}\n' "$(now)" >"$data/update-helper.json"
+chmod 0644 "$data/update-helper.json"
+
+request="$data/update-request.json"
+[ -f "$request" ] || exit 0
+channel="$(sed -n 's/.*"channel": *"\([a-z]*\)".*/\1/p' "$request")"
+# One attempt per request: a failure is reported, never retried every 30 s.
+rm -f "$request"
+
+report() {
+	printf '{"channel": "%s", "state": "%s", "message": "%s", "finished_at": "%s"}\n' \
+		"$channel" "$1" "$2" "$(now)" >"$data/update-status.json"
+	chmod 0644 "$data/update-status.json"
+}
+
+case "$channel" in
+stable | dev) ;;
+*)
+	report failed "Unknown build requested."
+	exit 0
+	;;
+esac
+
+dir="$(label com.docker.compose.project.working_dir)"
+compose="$(label com.docker.compose.project.config_files)"
+project="$(label com.docker.compose.project)"
+case "$compose" in
+*,*)
+	report failed "Sentinel runs from several compose files; switch the image by hand."
+	exit 0
+	;;
+esac
+if [ ! -f "$compose" ]; then
+	report failed "The compose file Sentinel was started from was not found."
+	exit 0
+fi
+
+stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+backup="$compose.before-$channel-$stamp"
+cp -p "$compose" "$backup"
+if ! retag "$compose" "$channel"; then
+	report failed "compose.yml does not use the published Sentinel image; switch it by hand."
+	exit 0
+fi
+
+if ! docker exec "$CONTAINER" python -c "import sqlite3; s = sqlite3.connect('/data/database/sentinel.db'); d = sqlite3.connect('/data/database/sentinel-before-$channel-$stamp.db'); s.backup(d); d.close()"; then
+	cp -p "$backup" "$compose"
+	report failed "Could not back up the database, so nothing was changed."
+	exit 0
+fi
+
+set -- -p "$project" -f "$compose"
+[ -f "$dir/.env" ] && set -- "$@" --env-file "$dir/.env"
+
+healthy() {
+	for _ in $(seq 1 60); do
+		[ "$(docker inspect -f '{{.State.Health.Status}}' "$CONTAINER" 2>/dev/null)" = healthy ] && return 0
+		sleep 3
+	done
+	return 1
+}
+
+if (cd "$dir" && docker compose "$@" pull && docker compose "$@" up -d) && healthy; then
+	report done "Sentinel now runs the $channel build."
+else
+	cp -p "$backup" "$compose"
+	(cd "$dir" && docker compose "$@" up -d) || true
+	report failed "The $channel build did not start healthily, so the previous build was restored."
+fi
+HELPER
+	cat >"$dir/sentinel-channel.service" <<'UNIT'
+[Unit]
+Description=Apply a Sentinel build switch asked for in the administration
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/sentinel-channel
+UNIT
+	cat >"$dir/sentinel-channel.timer" <<'UNIT'
+[Unit]
+Description=Look for a Sentinel build switch every 30 seconds
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=30s
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target
+UNIT
+}
+
+# Puts the build-switch helper and its timer into container $CTID.
+install_channel_helper() {
+	local dir
+	dir="$(mktemp -d)"
+	write_channel_helper "$dir"
+	run pct push "$CTID" "$dir/sentinel-channel" /usr/local/sbin/sentinel-channel --perms 0755
+	run pct push "$CTID" "$dir/sentinel-channel.service" /etc/systemd/system/sentinel-channel.service --perms 0644
+	run pct push "$CTID" "$dir/sentinel-channel.timer" /etc/systemd/system/sentinel-channel.timer --perms 0644
+	rm -rf "$dir"
+	run pct exec "$CTID" -- systemctl daemon-reload
+	run pct exec "$CTID" -- systemctl enable --now sentinel-channel.timer
+}
+
 provision_container() {
 	step "Installing Docker and Sentinel inside the container"
 
@@ -1618,6 +1764,8 @@ provision_container() {
 	run pct push "$CTID" "$PROVISION_FILE" /root/sentinel-provision.sh --perms 0700
 	run pct exec "$CTID" -- bash /root/sentinel-provision.sh ||
 		die "Provisioning failed inside the container. Look with: pct enter $CTID"
+	install_channel_helper ||
+		warn "The helper for switching builds from the administration could not be installed."
 }
 
 wait_for_sentinel() {
