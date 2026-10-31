@@ -14,7 +14,7 @@ import re
 import secrets
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
 from pydantic import Field, SecretStr, field_validator
@@ -115,6 +115,9 @@ class Settings(BaseSettings):
     go2rtc_binary: str = "go2rtc"
     manage_go2rtc: bool = True
     """When true Sentinel writes go2rtc.yaml and supervises the process."""
+
+    build_channel: Literal["stable", "dev"] = "stable"
+    """Which published image this is; the Dockerfile sets it, not the operator."""
 
     home_assistant_live: bool = True
     """Give Home Assistant a live RTSP URL for each camera.

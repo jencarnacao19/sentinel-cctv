@@ -26,6 +26,7 @@ from app.reliability.router import router as reliability_router
 from app.storage.router import router as storage_router
 from app.streaming.router import router as streams_router
 from app.system.appearance import router as appearance_router
+from app.system.channel import router as channel_router
 from app.system.router import router as system_router
 from app.viewer.router import router as viewer_router
 
@@ -33,6 +34,7 @@ API_V1_PREFIX = "/api/v1"
 
 api_router = APIRouter(prefix=API_V1_PREFIX)
 api_router.include_router(system_router)
+api_router.include_router(channel_router)
 api_router.include_router(appearance_router)
 api_router.include_router(auth_router)
 api_router.include_router(viewer_router)
