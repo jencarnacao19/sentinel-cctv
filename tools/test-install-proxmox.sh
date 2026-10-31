@@ -346,6 +346,31 @@ for good_path in "/tank/recordings" "/mnt/cctv" "/srv/sentinel/recordings"; do
 	fi
 done
 
+printf -- '\n-- build switch helper --\n'
+helper_dir="$(mktemp -d)"
+write_channel_helper "$helper_dir"
+compose="$helper_dir/compose.yml"
+printf 'services:\n  sentinel:\n    image: ghcr.io/jencarnacao19/sentinel-cctv:latest\n  web:\n    image: nginx:latest\n' >"$compose"
+sh "$helper_dir/sentinel-channel" --retag "$compose" dev
+check "moves the Sentinel image to :dev" "    image: ghcr.io/jencarnacao19/sentinel-cctv:dev" "$(grep sentinel-cctv "$compose")"
+check "leaves every other image alone" "    image: nginx:latest" "$(grep nginx "$compose")"
+sh "$helper_dir/sentinel-channel" --retag "$compose" stable
+check "moves it back to :latest" "    image: ghcr.io/jencarnacao19/sentinel-cctv:latest" "$(grep sentinel-cctv "$compose")"
+printf 'services:\n  sentinel:\n    image: sentinel-cctv:local\n' >"$compose"
+if sh "$helper_dir/sentinel-channel" --retag "$compose" dev; then
+	fail "refuses a compose file built from source" "non-zero exit" "exit 0"
+else
+	pass "refuses a compose file built from source"
+fi
+check "the source-built compose file is untouched" "    image: sentinel-cctv:local" "$(grep image "$compose")"
+check "the timer looks every 30 seconds" "OnUnitActiveSec=30s" "$(grep OnUnitActiveSec "$helper_dir/sentinel-channel.timer")"
+if sh -n "$helper_dir/sentinel-channel"; then
+	pass "the helper is valid POSIX sh"
+else
+	fail "the helper is valid POSIX sh" "exit 0" "syntax error"
+fi
+rm -rf "$helper_dir"
+
 printf -- '\n-- help and usage --\n'
 if bash "$INSTALLER" --help >/dev/null 2>&1; then
 	pass "--help exits successfully"
