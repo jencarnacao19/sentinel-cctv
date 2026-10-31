@@ -12,7 +12,7 @@ integration. Runs on a small home server without a GPU.
 
 ---
 
-> **Early development (`2.0.0`).** Test it with your own cameras and storage
+> **Early development (`2.0.1`).** Test it with your own cameras and storage
 > before relying on it. [`PROJECT_STATUS.md`](PROJECT_STATUS.md) lists what
 > works today and what does not yet.
 

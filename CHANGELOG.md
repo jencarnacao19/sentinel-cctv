@@ -9,6 +9,19 @@ requirements are described in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-10-31
+
+### Fixed
+
+- The Home Assistant integration loads every camera on Home Assistant 2026.10.
+  That release refuses devices linked with `via_device`, so every camera but one
+  failed with "Error adding entity None for domain camera"; camera devices now
+  link to the server with `via_device_id`, and older releases keep `via_device`.
+- The camera wall opens without waiting for the administrator sign-in status.
+  Behind an access proxy that keeps the administration API private, as for the
+  Home Assistant panel, that request failed and was retried a second later
+  before any camera started.
+
 ## [2.0.0] - 2026-10-18
 
 A major version because two changes can break an existing set-up: the
@@ -552,6 +565,7 @@ the dev build.
   mypy, pytest, eslint, tsc, vitest, the production build and an image build
   gated on the container actually reporting healthy.
 
-[Unreleased]: https://github.com/jencarnacao19/sentinel-cctv/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/jencarnacao19/sentinel-cctv/compare/v2.0.1...HEAD
+[2.0.1]: https://github.com/jencarnacao19/sentinel-cctv/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/jencarnacao19/sentinel-cctv/compare/v0.1.0...v2.0.0
 [0.1.0]: https://github.com/jencarnacao19/sentinel-cctv/releases/tag/v0.1.0

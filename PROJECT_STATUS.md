@@ -1,6 +1,6 @@
 # Sentinel CCTV — project status
 
-Sentinel is an early-development (`2.0.0`) local video recorder for RTSP
+Sentinel is an early-development (`2.0.1`) local video recorder for RTSP
 cameras. Deployments should be validated with the cameras, storage and browsers
 that will actually be used. Automated tests do not establish compatibility with
 every device or firmware version.
