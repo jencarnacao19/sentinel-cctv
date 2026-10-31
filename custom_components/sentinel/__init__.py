@@ -8,14 +8,17 @@ not have to touch it beyond one more entry in ``PLATFORMS``.
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_SCAN_INTERVAL, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.event import async_track_time_interval
 
 from .api import SentinelClient
+from .automation_sync import async_sync_automations
 from .const import (
     CONF_TOKEN,
     CONF_URL,
@@ -70,6 +73,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: SentinelConfigEntry) -> 
     coordinator.server_device_id = server_device.id
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Automations sync once entities exist, again whenever the administrator
+    # saves recipes, and every few minutes to catch a missed event.
+    def sync_automations(*_: object) -> None:
+        entry.async_create_background_task(
+            hass,
+            async_sync_automations(hass, entry, coordinator),
+            "sentinel automations",
+        )
+
+    coordinator.on_automations_changed = sync_automations
+    entry.async_on_unload(
+        async_track_time_interval(hass, sync_automations, timedelta(minutes=5))
+    )
+    sync_automations()
     entry.async_on_unload(entry.add_update_listener(_async_reload_on_options_change))
     return True
 

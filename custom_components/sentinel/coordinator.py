@@ -24,6 +24,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from datetime import timedelta
 
@@ -44,6 +45,7 @@ from .const import (
     DOMAIN,
     EVENT_MOTION_ENDED,
     EVENT_MOTION_STARTED,
+    EVENT_TYPE_AUTOMATIONS_CHANGED,
     EVENT_TYPE_CAMERA_OFFLINE,
     EVENT_TYPE_CAMERA_ONLINE,
     EVENT_TYPE_MOTION_ENDED,
@@ -111,6 +113,7 @@ class SentinelDataUpdateCoordinator(DataUpdateCoordinator[SentinelData]):
         self.client = client
         self.server_device_id: str | None = None
         """Registry id of the server device, set at setup before any platform."""
+        self.on_automations_changed: Callable[[], None] | None = None
         self._configured_interval = timedelta(seconds=scan_interval_seconds)
         self._fallback_interval = timedelta(seconds=FALLBACK_SCAN_INTERVAL_SECONDS)
         self._last_event_seq: int | None = None
@@ -261,6 +264,9 @@ class SentinelDataUpdateCoordinator(DataUpdateCoordinator[SentinelData]):
             self._set_camera_status(camera_id, online=True)
         elif event.type == EVENT_TYPE_CAMERA_OFFLINE and camera_id:
             self._set_camera_status(camera_id, online=False)
+        elif event.type == EVENT_TYPE_AUTOMATIONS_CHANGED:
+            if self.on_automations_changed is not None:
+                self.on_automations_changed()
         elif event.type in REFRESH_EVENT_TYPES:
             self.hass.async_create_task(self.async_request_refresh())
         # Any other type -- including one this build has never heard of -- is

@@ -337,6 +337,27 @@ class SentinelClient:
             "PATCH", f"/cameras/{camera_id}", json={"recording_mode": mode}
         )
 
+    async def async_get_automations(self) -> dict[str, Any]:
+        """The automation recipes the administrator saved."""
+        payload = await self._async_request(
+            "GET", "/integrations/home-assistant/automations"
+        )
+        return payload if isinstance(payload, dict) else {}
+
+    async def async_put_targets(self, targets: Mapping[str, Any]) -> None:
+        """Tell Sentinel which phones, lights, people and alarms recipes can use."""
+        await self._async_request(
+            "PUT", "/integrations/home-assistant/targets", json=targets
+        )
+
+    async def async_put_automation_status(self, status: Mapping[str, Any]) -> None:
+        """Tell Sentinel what happened to each recipe."""
+        await self._async_request(
+            "PUT",
+            "/integrations/home-assistant/automations/status",
+            json={"status": status},
+        )
+
     async def async_connect_websocket(
         self, path: str = DEFAULT_WEBSOCKET_PATH, *, since: int | None = None
     ) -> ClientWebSocketResponse:

@@ -116,6 +116,7 @@ def register_sentinel(
     handshake: dict[str, Any] | None = None,
     handshake_status: int = 200,
     cameras: list[dict[str, Any]] | None = None,
+    recipes: list[dict[str, Any]] | None = None,
 ) -> None:
     """Answer every request the integration makes during a normal set-up."""
     mock.get(
@@ -133,6 +134,12 @@ def register_sentinel(
     mock.patch(
         f"{API}/cameras/cam-1", json={"id": "cam-1", "recording_mode": "continuous"}
     )
+    mock.get(
+        f"{API}/integrations/home-assistant/automations",
+        json={"recipes": recipes or [], "targets": None, "status": {}},
+    )
+    mock.put(f"{API}/integrations/home-assistant/targets", status=204)
+    mock.put(f"{API}/integrations/home-assistant/automations/status", status=204)
 
 
 @pytest.fixture

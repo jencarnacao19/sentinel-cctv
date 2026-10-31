@@ -47,7 +47,8 @@
         "title": "Opções do Sentinel CCTV",
         "description": "O Sentinel envia as alterações por WebSocket, por isso este intervalo só conta enquanto essa ligação estiver em baixo.",
         "data": {
-          "scan_interval": "Intervalo de recurso (segundos)"
+          "scan_interval": "Intervalo de recurso (segundos)",
+          "allow_automations": "Permitir que o Sentinel crie automações"
         }
       }
     }
