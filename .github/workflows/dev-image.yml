@@ -33,6 +33,7 @@ jobs:
         with:
           context: .
           platforms: linux/amd64
+          build-args: SENTINEL_BUILD_CHANNEL=dev
           push: false
           load: true
           tags: sentinel-cctv:dev-test
@@ -77,6 +78,7 @@ jobs:
         with:
           context: .
           platforms: linux/amd64
+          build-args: SENTINEL_BUILD_CHANNEL=dev
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
