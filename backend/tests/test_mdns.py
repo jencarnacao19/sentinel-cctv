@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import ipaddress
 from collections.abc import AsyncIterator
 
 import ifaddr
@@ -13,7 +12,7 @@ from zeroconf.asyncio import AsyncZeroconf
 from app.config import Settings
 from app.integrations import mdns
 from app.integrations.identity import install_id
-from app.integrations.mdns import MdnsAnnouncer, _local_ipv4_addresses, _sanitise_label
+from app.integrations.mdns import MdnsAnnouncer, _sanitise_label
 
 #: Real multicast is genuinely unavailable in some sandboxes (no route, a
 #: firewall, network namespace isolation). The registration itself is
@@ -47,25 +46,16 @@ async def announcer(unmanaged_settings: Settings) -> AsyncIterator[MdnsAnnouncer
 
 
 class TestAddressDiscovery:
-    def test_never_returns_loopback_or_link_local(self) -> None:
-        for address in _local_ipv4_addresses():
-            parsed = ipaddress.ip_address(address)
-            assert not parsed.is_loopback
-            assert not parsed.is_link_local
-
-    def test_agrees_with_a_direct_ifaddr_query(self) -> None:
-        """Not a mock of our own code: cross-checked against the same
-        third-party library the function itself calls, independently."""
-        expected = set()
-        for adapter in ifaddr.get_adapters():
-            for ip in adapter.ips:
-                if not ip.is_IPv4 or not isinstance(ip.ip, str):
-                    continue
-                parsed = ipaddress.ip_address(ip.ip)
-                if parsed.is_loopback or parsed.is_link_local or parsed.is_unspecified:
-                    continue
-                expected.add(ip.ip)
-        assert set(_local_ipv4_addresses()) == expected
+    def test_a_docker_bridge_is_never_announced(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """With host networking the host's docker0 is visible too; Home Assistant
+        offered http://172.17.0.1:8090, which nothing on the LAN can open."""
+        adapters = [
+            ifaddr.Adapter("docker0", "docker0", [ifaddr.IP("172.17.0.1", 16, "docker0")]),
+            ifaddr.Adapter("eth0", "eth0", [ifaddr.IP("192.168.50.27", 24, "eth0")]),
+            ifaddr.Adapter("lo", "lo", [ifaddr.IP("127.0.0.1", 8, "lo")]),
+        ]
+        monkeypatch.setattr(ifaddr, "get_adapters", lambda: adapters)
+        assert mdns.lan_addresses() == ["192.168.50.27"]
 
 
 class TestSanitiseLabel:
@@ -121,7 +111,7 @@ class TestFailSoft:
     async def test_no_usable_address_is_handled_without_raising(
         self, announcer: MdnsAnnouncer, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr(mdns, "_local_ipv4_addresses", lambda: [])
+        monkeypatch.setattr(mdns, "lan_addresses", lambda: [])
         await announcer.start()
         assert announcer.is_announced is False
 

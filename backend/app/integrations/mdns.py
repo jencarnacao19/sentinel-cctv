@@ -10,11 +10,9 @@ logged as a warning. mDNS never gets a vote on whether Sentinel starts.
 
 from __future__ import annotations
 
-import ipaddress
 import socket
 from typing import Final
 
-import ifaddr
 from zeroconf import IPVersion
 from zeroconf.asyncio import AsyncServiceInfo, AsyncZeroconf
 
@@ -22,38 +20,11 @@ from app import __version__
 from app.config import Settings, get_settings
 from app.integrations.identity import install_id
 from app.logging_config import get_logger
+from app.system.address import lan_addresses
 
 logger = get_logger("HOME_ASSISTANT")
 
 SERVICE_TYPE: Final = "_sentinel._tcp.local."
-
-
-def _local_ipv4_addresses() -> list[str]:
-    """Every non-loopback, non-link-local IPv4 address this host has.
-
-    ``zeroconf.get_all_addresses()`` does the same thing but is deprecated in
-    favour of calling ``ifaddr`` directly (a zeroconf dependency already), so
-    that is what this does instead of carrying a deprecation warning into
-    every start-up log.
-    """
-    found: set[str] = set()
-    try:
-        adapters = ifaddr.get_adapters()
-    except OSError:
-        return []
-
-    for adapter in adapters:
-        for ip in adapter.ips:
-            if not ip.is_IPv4 or not isinstance(ip.ip, str):
-                continue
-            try:
-                parsed = ipaddress.ip_address(ip.ip)
-            except ValueError:
-                continue
-            if parsed.is_loopback or parsed.is_link_local or parsed.is_unspecified:
-                continue
-            found.add(ip.ip)
-    return sorted(found)
 
 
 def _sanitise_label(value: str) -> str:
@@ -89,7 +60,8 @@ class MdnsAnnouncer:
             )
 
     async def _start(self) -> None:
-        addresses = _local_ipv4_addresses()
+        # Never a Docker bridge such as 172.17.0.1: nobody else on the LAN can open it.
+        addresses = lan_addresses()
         if not addresses:
             logger.warning(
                 "No usable network address found; mDNS announcement skipped "
