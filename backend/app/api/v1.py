@@ -29,6 +29,7 @@ from app.system.appearance import router as appearance_router
 from app.system.channel import router as channel_router
 from app.system.router import router as system_router
 from app.viewer.router import router as viewer_router
+from app.viewer.wall import router as wall_router
 
 API_V1_PREFIX = "/api/v1"
 
@@ -38,6 +39,7 @@ api_router.include_router(channel_router)
 api_router.include_router(appearance_router)
 api_router.include_router(auth_router)
 api_router.include_router(viewer_router)
+api_router.include_router(wall_router)
 # The static /cameras/tapo-battery/test route must precede the generic
 # /cameras/{camera_id}/test route or FastAPI interprets "tapo-battery" as an
 # id. Per-camera battery routes remain under the same local-first namespace.
