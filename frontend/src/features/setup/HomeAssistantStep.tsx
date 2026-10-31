@@ -1,5 +1,5 @@
 import { useMutation } from '@tanstack/react-query'
-import { Check, Copy, KeyRound } from 'lucide-react'
+import { Check, Copy, ExternalLink, KeyRound } from 'lucide-react'
 import { useState } from 'react'
 
 import { ApiError, NetworkError } from '@/api/client'
@@ -8,7 +8,7 @@ import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import type { CreatedApiToken } from '@/types/api'
 
-const REPOSITORY = 'https://github.com/jencarnacao19/sentinel-cctv'
+const MY_HOME_ASSISTANT = 'https://my.home-assistant.io/redirect'
 
 function CopyButton({ value, label }: { value: string; label: string }) {
   const [copied, setCopied] = useState(false)
@@ -33,7 +33,7 @@ function CopyButton({ value, label }: { value: string; label: string }) {
   )
 }
 
-function Value({ value, label }: { value: string; label: string }) {
+export function Value({ value, label }: { value: string; label: string }) {
   return (
     <div className="mt-2 flex flex-wrap items-center gap-2">
       <code className="min-w-0 flex-1 truncate rounded-lg bg-(--color-bg-subtle) px-3 py-2 font-mono text-xs">
@@ -41,6 +41,18 @@ function Value({ value, label }: { value: string; label: string }) {
       </code>
       <CopyButton value={value} label={label} />
     </div>
+  )
+}
+
+/** Opens a page of the user's own Home Assistant through my.home-assistant.io. */
+function HomeAssistantLink({ path, label }: { path: string; label: string }) {
+  return (
+    <Button asChild size="sm" variant="secondary" className="mt-2">
+      <a href={`${MY_HOME_ASSISTANT}/${path}`} target="_blank" rel="noreferrer">
+        <ExternalLink aria-hidden="true" />
+        {label}
+      </a>
+    </Button>
   )
 }
 
@@ -78,10 +90,12 @@ export function HomeAssistantStep({
       <li>
         <p className="font-medium">1. Install the integration</p>
         <p className="text-(--color-fg-muted)">
-          In HACS, open the menu, choose <em>Custom repositories</em>, add this address with the
-          type <em>Integration</em>, install <em>Sentinel CCTV</em> and restart Home Assistant.
+          In HACS, search for <em>Sentinel CCTV</em>, download it and restart Home Assistant.
         </p>
-        <Value value={REPOSITORY} label="Copy the repository address" />
+        <HomeAssistantLink
+          path="hacs_repository/?owner=jencarnacao19&repository=sentinel-cctv&category=integration"
+          label="Open in HACS"
+        />
       </li>
       <li>
         <p className="font-medium">2. Add it</p>
@@ -90,6 +104,7 @@ export function HomeAssistantStep({
           find this server on its own; if it asks for an address, use this one.
         </p>
         <Value value={address} label="Copy this server's address" />
+        <HomeAssistantLink path="config_flow_start/?domain=sentinel" label="Add the integration" />
       </li>
       <li>
         <p className="font-medium">3. Give it a token</p>

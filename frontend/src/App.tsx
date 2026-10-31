@@ -10,6 +10,7 @@ import { CamerasPage } from '@/features/cameras/CamerasPage'
 import { EventsPage } from '@/features/events/EventsPage'
 import { LivePage } from '@/features/live/LivePage'
 import { CameraHealthPage } from '@/features/reliability/CameraHealthPage'
+import { HomeAssistantPage } from '@/features/home-assistant/HomeAssistantPage'
 import { SettingsPage } from '@/features/settings/SettingsPage'
 import { StoragePage } from '@/features/storage/StoragePage'
 import { TimelinePage, ViewerTimelinePage } from '@/features/timeline/TimelinePage'
@@ -149,6 +150,7 @@ export function App() {
         <Route path="zones" element={<ZonesPage />} />
         <Route path="storage" element={<StoragePage />} />
         <Route path="system" element={<SystemPage />} />
+        <Route path="home-assistant" element={<HomeAssistantPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

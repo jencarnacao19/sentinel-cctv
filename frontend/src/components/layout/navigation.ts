@@ -6,6 +6,7 @@ import {
   HardDrive,
   Hexagon,
   History,
+  House,
   LayoutGrid,
   Settings,
   Video,
@@ -68,6 +69,7 @@ export const NAV_ITEMS: NavItem[] = [
   },
   { to: '/admin/zones', label: 'Motion zones', shortLabel: 'Zones', icon: Hexagon, section: 'Configure' },
   { to: '/admin/storage', label: 'Storage', icon: HardDrive, section: 'Configure' },
+  { to: '/admin/home-assistant', label: 'Home Assistant', shortLabel: 'HA', icon: House, section: 'Configure' },
   { to: '/admin/system', label: 'System', icon: Cpu, section: 'Server' },
   { to: '/admin/settings', label: 'Settings', icon: Settings, section: 'Server' },
 ]
