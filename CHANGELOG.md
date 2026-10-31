@@ -21,6 +21,13 @@ requirements are described in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
   integration below. No `.env` editing: a key and addresses set there keep
   working. Only a fingerprint of the link's key is stored, and a new link stops
   the old one.
+- **Home Assistant automations from the administration.** Configure →
+  Automations creates them for you: motion in a camera or zone notifies phones
+  (with the picture), problems notify phones, motion turns lights on or sounds
+  an armed alarm, and an empty home records the indoor cameras. Home Assistant
+  writes them only after its owner turns on "Let Sentinel create automations"
+  in the integration's options, and only with those actions; one edited in Home
+  Assistant is left alone until given back to Sentinel.
 - **Arrange the camera wall.** Configure → Camera wall chooses which cameras
   every wall shows, their order and the default grid. On the wall, Default
   follows it and 1–4 per row stays a per-device choice.

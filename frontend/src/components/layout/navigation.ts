@@ -1,5 +1,6 @@
 import {
   Activity,
+  Bot,
   Clapperboard,
   Cpu,
   Gauge,
@@ -71,6 +72,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/admin/wall', label: 'Camera wall', shortLabel: 'Wall', icon: Grid2x2, section: 'Configure' },
   { to: '/admin/zones', label: 'Motion zones', shortLabel: 'Zones', icon: Hexagon, section: 'Configure' },
   { to: '/admin/storage', label: 'Storage', icon: HardDrive, section: 'Configure' },
+  { to: '/admin/automations', label: 'Automations', icon: Bot, section: 'Configure' },
   { to: '/admin/home-assistant', label: 'Home Assistant', shortLabel: 'HA', icon: House, section: 'Configure' },
   { to: '/admin/system', label: 'System', icon: Cpu, section: 'Server' },
   { to: '/admin/settings', label: 'Settings', icon: Settings, section: 'Server' },

@@ -534,3 +534,49 @@ export interface WallLayout {
   order: string[]
   hidden: string[]
 }
+
+/** A Home Assistant automation the administration asks the integration to create. */
+export interface AutomationRecipe {
+  id: string
+  kind: 'motion_alert' | 'system_alert' | 'motion_actions' | 'presence_recording'
+  name: string
+  camera_id: string | null
+  zone_id: string | null
+  camera_ids: string[]
+  notify: string[]
+  lights: string[]
+  when: 'always' | 'night' | 'away' | 'alarm_armed'
+  alarm_entity: string | null
+  image: boolean
+  cooldown_minutes: number
+  minutes: number
+  trigger_alarm: boolean
+  storage_below_gb: number
+  message: string
+  reclaim: number
+}
+
+export interface AutomationTarget {
+  id: string
+  name: string
+}
+
+export interface AutomationsState {
+  recipes: AutomationRecipe[]
+  targets: {
+    allowed: boolean
+    automations_file: boolean
+    notify: AutomationTarget[]
+    lights: AutomationTarget[]
+    people: AutomationTarget[]
+    alarms: AutomationTarget[]
+    reported_at: string | null
+  } | null
+  status: Record<
+    string,
+    {
+      state: 'created' | 'edited_in_ha' | 'refused' | 'waiting_permission' | 'unsupported'
+      message: string
+    }
+  >
+}
