@@ -28,6 +28,7 @@ from app.system.appearance import router as appearance_router
 from app.system.channel import router as channel_router
 from app.system.router import router as system_router
 from app.viewer.router import router as viewer_router
+from app.viewer.wall import router as wall_router
 
 API_V1_PREFIX = "/api/v1"
 
@@ -37,6 +38,7 @@ api_router.include_router(channel_router)
 api_router.include_router(appearance_router)
 api_router.include_router(auth_router)
 api_router.include_router(viewer_router)
+api_router.include_router(wall_router)
 api_router.include_router(cameras_router)
 # Mounted after the camera router so /cameras/{id}/motion-zones resolves; both
 # share the /cameras prefix but have no overlapping paths.
