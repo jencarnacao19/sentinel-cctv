@@ -9,6 +9,27 @@ requirements are described in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-10-31
+
+### Added
+
+- **Home Assistant automations from the administration.** Configure →
+  Automations creates them for you: motion in a camera or zone notifies phones
+  (with the picture), problems notify phones, motion turns lights on or sounds
+  an armed alarm, and an empty home records the cameras you choose. Home
+  Assistant writes them only after its owner turns on "Let Sentinel create
+  automations" in the integration's options, and only with those actions; one
+  edited in Home Assistant is left alone until given back to Sentinel.
+- **Arrange the camera wall.** Configure → Camera wall chooses which cameras
+  every wall shows, their order and the default grid. On the wall, Default
+  follows it and 1–4 per row stays a per-device choice.
+
+### Fixed
+
+- Home Assistant discovers Sentinel on its LAN address instead of the Docker
+  bridge (`172.17.0.1`), which it could not reach.
+- The setup's Home Assistant step links to HACS.
+
 ## [2.1.0] - 2026-10-31
 
 ### Added
@@ -19,16 +40,6 @@ requirements are described in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
   integration below. No `.env` editing: a key and addresses set there keep
   working. Only a fingerprint of the link's key is stored, and a new link stops
   the old one.
-- **Home Assistant automations from the administration.** Configure →
-  Automations creates them for you: motion in a camera or zone notifies phones
-  (with the picture), problems notify phones, motion turns lights on or sounds
-  an armed alarm, and an empty home records the indoor cameras. Home Assistant
-  writes them only after its owner turns on "Let Sentinel create automations"
-  in the integration's options, and only with those actions; one edited in Home
-  Assistant is left alone until given back to Sentinel.
-- **Arrange the camera wall.** Configure → Camera wall chooses which cameras
-  every wall shows, their order and the default grid. On the wall, Default
-  follows it and 1–4 per row stays a per-device choice.
 - **Switch between the stable and the dev build.** Settings → Build asks for the
   build's name in capitals, then a small helper the installer adds inside the
   container backs up the database and `compose.yml`, switches the image and
@@ -606,7 +617,8 @@ the dev build.
   mypy, pytest, eslint, tsc, vitest, the production build and an image build
   gated on the container actually reporting healthy.
 
-[Unreleased]: https://github.com/jencarnacao19/sentinel-cctv/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/jencarnacao19/sentinel-cctv/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/jencarnacao19/sentinel-cctv/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/jencarnacao19/sentinel-cctv/compare/v2.0.1...v2.1.0
 [2.0.1]: https://github.com/jencarnacao19/sentinel-cctv/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/jencarnacao19/sentinel-cctv/compare/v0.1.0...v2.0.0
