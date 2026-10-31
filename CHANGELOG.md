@@ -9,6 +9,37 @@ requirements are described in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-10-31
+
+### Added
+
+- **Home Assistant page in the administration.** Configure → Home Assistant
+  creates the panel link, saves the Home Assistant addresses allowed to show it
+  and walks through adding it as a Webpage dashboard, with the optional
+  integration below. No `.env` editing: a key and addresses set there keep
+  working. Only a fingerprint of the link's key is stored, and a new link stops
+  the old one.
+- **Switch between the stable and the dev build.** Settings → Build asks for the
+  build's name in capitals, then a small helper the installer adds inside the
+  container backs up the database and `compose.yml`, switches the image and
+  restores the previous build if the new one does not start healthily. Sentinel
+  itself never gets access to Docker. Existing installations get the helper by
+  running the installer's update.
+- **Live video in Home Assistant.** Each camera entity streams natively
+  (WebRTC at home, HLS elsewhere) from Sentinel's relay, protected by a password
+  derived from the install secret, instead of showing snapshots only. On by
+  default; `SENTINEL_HOME_ASSISTANT_LIVE=false` keeps the relay on loopback.
+
+### Changed
+
+- **Live view starts over direct WebRTC.** On the home network the camera wall,
+  including the page embedded in Home Assistant, starts in well under a second
+  instead of waiting on MSE or HLS through the HTTPS proxy; away from home it
+  falls back to them after 2.5 seconds. Each camera shows its last frame from
+  this device while it connects.
+- The setup's Home Assistant step installs the integration from HACS's default
+  list and opens the right pages of your own Home Assistant.
+
 ## [2.0.1] - 2026-10-31
 
 ### Fixed
@@ -565,7 +596,8 @@ the dev build.
   mypy, pytest, eslint, tsc, vitest, the production build and an image build
   gated on the container actually reporting healthy.
 
-[Unreleased]: https://github.com/jencarnacao19/sentinel-cctv/compare/v2.0.1...HEAD
+[Unreleased]: https://github.com/jencarnacao19/sentinel-cctv/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/jencarnacao19/sentinel-cctv/compare/v2.0.1...v2.1.0
 [2.0.1]: https://github.com/jencarnacao19/sentinel-cctv/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/jencarnacao19/sentinel-cctv/compare/v0.1.0...v2.0.0
 [0.1.0]: https://github.com/jencarnacao19/sentinel-cctv/releases/tag/v0.1.0

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sentinel-cctv"
-version = "2.0.1"
+version = "2.1.0"
 description = "Local-first RTSP video surveillance with continuous recording and CPU motion detection"
 # No `readme` on purpose: the Docker build copies only pyproject.toml and app/,
 # and a missing readme file would fail the install.
