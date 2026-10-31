@@ -10,6 +10,7 @@ import { CamerasPage } from '@/features/cameras/CamerasPage'
 import { EventsPage } from '@/features/events/EventsPage'
 import { LivePage } from '@/features/live/LivePage'
 import { CameraHealthPage } from '@/features/reliability/CameraHealthPage'
+import { AutomationsPage } from '@/features/automations/AutomationsPage'
 import { HomeAssistantPage } from '@/features/home-assistant/HomeAssistantPage'
 import { SettingsPage } from '@/features/settings/SettingsPage'
 import { WallPage } from '@/features/wall/WallPage'
@@ -153,6 +154,7 @@ export function App() {
         <Route path="system" element={<SystemPage />} />
         <Route path="home-assistant" element={<HomeAssistantPage />} />
         <Route path="wall" element={<WallPage />} />
+        <Route path="automations" element={<AutomationsPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

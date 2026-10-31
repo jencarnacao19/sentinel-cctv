@@ -152,6 +152,30 @@ continues talking to Sentinel on the LAN. If the app has previously shown
 reload this dashboard; the viewer no longer relies solely on a cross-site
 cookie accepted by Safari.
 
+## Automations from Sentinel
+
+**Configure → Automations** in Sentinel creates Home Assistant automations for
+you, from four recipes: motion → notify phones (optionally with the camera
+picture and only at night, when nobody is home or when the alarm is armed),
+problem → notify phones (a camera stopped recording, little free space),
+motion → turn lights on for a while or sound an alarm that is already armed,
+and nobody home → record the cameras you choose.
+
+Nothing is written until you allow it in Home Assistant: **Settings → Devices &
+services → Sentinel CCTV → Configure → Let Sentinel create automations**. The
+integration then writes each recipe into `automations.yaml`, the file Home
+Assistant's own editor uses (a copy of the file as it was is kept as
+`automations.yaml.before-sentinel`), and reloads automations. Each one is
+called "Sentinel: …".
+
+- Only these actions are ever written: notifications, lights, Sentinel's own
+  recording switches, and triggering an alarm panel while it is armed. Never
+  locks, doors, covers, disarming, scripts or anything else, whatever Sentinel
+  asks for.
+- Edit one in Home Assistant and Sentinel leaves it alone; the Automations page
+  shows it as edited, with **Give back to Sentinel** to overwrite it again.
+- Deleting a recipe removes its automation, unless you edited it.
+
 ## Automation example
 
 ```yaml

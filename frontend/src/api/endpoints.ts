@@ -3,6 +3,8 @@ import type {
   ApiToken,
   ApiTokenScope,
   AuthStatus,
+  AutomationRecipe,
+  AutomationsState,
   BuildChannel,
   BuildChannelState,
   Camera,
@@ -94,6 +96,12 @@ export const haPanelApi = {
   setOrigins: (origins: string[]) =>
     api.put<HaPanelStatus>('/integrations/home-assistant/panel/origins', { origins }),
   createLink: () => api.post<{ key: string }>('/integrations/home-assistant/panel/link'),
+}
+
+export const automationsApi = {
+  get: () => api.get<AutomationsState>('/integrations/home-assistant/automations'),
+  save: (recipes: AutomationRecipe[]) =>
+    api.put<AutomationsState>('/integrations/home-assistant/automations', { recipes }),
 }
 
 export const wallApi = {
@@ -252,6 +260,7 @@ export const queryKeys = {
   haPanel: ['integrations', 'ha-panel'] as const,
   buildChannel: ['system', 'channel'] as const,
   wall: ['wall'] as const,
+  automations: ['integrations', 'automations'] as const,
   // Lists and per-camera resources deliberately have different prefixes.
   // Invalidating the camera list must not re-run an active Tapo capability
   // query: that consumes one of the vendor pool's scarce workers.
