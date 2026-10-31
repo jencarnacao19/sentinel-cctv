@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ApiError, API_BASE } from '@/api/client'
 import { AccountsManager } from '@/features/accounts/AccountsManager'
 import { SoundPolicyCard } from '@/features/appearance/SoundPolicyCard'
+import { BuildChannelCard } from '@/features/settings/BuildChannelCard'
 import { MoveMachineCard } from '@/features/settings/MoveMachineCard'
 import { authApi, queryKeys } from '@/api/endpoints'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -693,6 +694,7 @@ export function SettingsPage() {
       <BackupCard />
       <MoveMachineCard />
       <PasswordCard />
+      <BuildChannelCard />
       <DiagnosticsCard />
     </div>
   )

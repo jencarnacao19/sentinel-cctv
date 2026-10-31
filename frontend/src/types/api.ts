@@ -503,3 +503,26 @@ export interface TimedRecordingStatus {
   segment_id: string | null
   finished: boolean
 }
+
+/** The Home Assistant panel link, managed under Home Assistant in the admin. */
+export interface HaPanelStatus {
+  link_exists: boolean
+  /** A key from SENTINEL_VIEWER_KEY also opens the panel. */
+  env_key: boolean
+  origins: string[]
+}
+
+export type BuildChannel = 'stable' | 'dev'
+
+export interface BuildChannelState {
+  current: BuildChannel
+  requested: BuildChannel | null
+  last_result: {
+    channel?: string
+    state?: 'done' | 'failed'
+    message?: string
+    finished_at?: string
+  } | null
+  /** When the host helper last looked for a request; null when it is not installed. */
+  helper_seen_at: string | null
+}
