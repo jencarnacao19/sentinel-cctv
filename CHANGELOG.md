@@ -15,6 +15,17 @@ requirements are described in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
   (WebRTC at home, HLS elsewhere) from Sentinel's relay, protected by a password
   derived from the install secret, instead of showing snapshots only. On by
   default; `SENTINEL_HOME_ASSISTANT_LIVE=false` keeps the relay on loopback.
+- **Home Assistant page in the administration.** Configure → Home Assistant
+  creates the panel link, saves the Home Assistant addresses allowed to show it
+  and walks through adding it as a Webpage dashboard, with the optional
+  integration below. No `.env` editing: a key and addresses set there keep
+  working. Only a fingerprint of the link's key is stored, and a new link stops
+  the old one.
+- **Switch between the stable and the dev build.** Settings → Build asks for the
+  build's name in capitals, then a small helper the installer adds inside the
+  container backs up the database and `compose.yml`, switches the image and
+  restores the previous build if the new one does not start healthily. Sentinel
+  itself never gets access to Docker.
 
 ### Changed
 

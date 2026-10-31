@@ -77,9 +77,9 @@ Sentinel announces itself over mDNS, so it usually appears on its own under
 networks and container setups block multicast — add it manually with **Add
 integration → Sentinel CCTV**.
 
-Either way it asks for an API token. Create one in Sentinel:
-
-**Settings → API tokens → Create token**, name it "Home Assistant".
+Either way it asks for an API token. Create one in Sentinel under
+**Home Assistant → The integration → Create token**, or under
+**Settings → API tokens**.
 
 The token is shown once and never again, so paste it straight into Home
 Assistant.
@@ -88,12 +88,19 @@ Assistant.
 
 The integration above creates devices and entities. To make the complete
 Sentinel interface available from one place in Home Assistant as well, add a
-**Webpage dashboard**:
+**Webpage dashboard**. Sentinel's administration walks through it under
+**Configure → Home Assistant**:
 
-1. Open **Settings → Dashboards → Add dashboard**.
-2. Choose **Webpage**, call it **Sentinel CCTV**, and enable **Add to sidebar**.
-3. Enter the dedicated HTTPS embed address described below.
-4. Leave **Admin-only** off if normal Home Assistant users should see it.
+1. Check the address Home Assistant opens, and list your Home Assistant
+   addresses so browsers allow the page inside them.
+2. **Create link**. Copy it then: Sentinel keeps only a fingerprint. A new link
+   stops the old one working.
+3. In Home Assistant open **Settings → Dashboards → Add dashboard**, choose
+   **Webpage**, paste the link and keep it in the sidebar. Leave **Admin-only**
+   off if normal Home Assistant users should see it.
+
+A key and addresses set in the deployment `.env`, as described below, keep
+working alongside the link created there.
 
 Current Sentinel releases display a restricted footage console at `/` and keep
 all configuration below `/admin` behind the administrator login. Normal Home
