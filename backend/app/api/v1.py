@@ -13,6 +13,7 @@ from app.auth.router import router as auth_router
 from app.cameras.router import router as cameras_router
 from app.cameras.tapo_router import router as tapo_router
 from app.discovery.router import router as discovery_router
+from app.integrations.automations import router as ha_automations_router
 from app.integrations.panel import router as ha_panel_router
 from app.integrations.router import router as integrations_router
 from app.motion.router import router as events_router
@@ -64,3 +65,4 @@ api_router.include_router(events_router)
 api_router.include_router(realtime_router)
 api_router.include_router(integrations_router)
 api_router.include_router(ha_panel_router)
+api_router.include_router(ha_automations_router)

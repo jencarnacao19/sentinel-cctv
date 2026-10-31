@@ -309,6 +309,7 @@ one might have found its way into a caller's payload.
 | `recording.stopped` | `camera_id` |
 | `storage.warning` | `deleted`, `freed_bytes`, `reason` |
 | `storage.critical` | `reason` |
+| `automations.changed` | `count` — the administrator saved the automation recipes; fetch `GET /integrations/home-assistant/automations` |
 
 Two honest limitations, stated plainly so nobody builds an entity on a
 false assumption:
