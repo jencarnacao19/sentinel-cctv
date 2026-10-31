@@ -22,8 +22,11 @@ const COLUMNS: Record<Layout, string> = {
   '4x4': 'grid-cols-1 min-[480px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4',
 }
 
-export const LAYOUT_OPTIONS: SegmentedOption<Layout>[] = [
-  { value: 'auto', label: 'Automatic density', children: 'Auto' },
+/** What a person watching can pick; Default follows the administrator's grid. */
+export type WallChoice = 'default' | Exclude<Layout, 'auto'>
+
+export const WALL_OPTIONS: SegmentedOption<WallChoice>[] = [
+  { value: 'default', label: "The administrator's default grid", children: 'Default' },
   { value: '1', label: 'One camera per row', children: '1' },
   { value: '2x2', label: 'Two columns', children: '2' },
   { value: '3x3', label: 'Three columns', children: '3' },

@@ -56,6 +56,9 @@ describe('ViewerPage', () => {
             }),
           )
         }
+        if (url.includes('/viewer/wall')) {
+          return Promise.resolve(json({ columns: 'auto', order: [], hidden: [] }))
+        }
         return Promise.resolve(
           json([
             {

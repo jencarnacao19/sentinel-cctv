@@ -35,6 +35,7 @@ import type {
   TapoFeaturePayload,
   TapoState,
   User,
+  WallLayout,
 } from '@/types/api'
 
 export const authApi = {
@@ -93,6 +94,10 @@ export const haPanelApi = {
   setOrigins: (origins: string[]) =>
     api.put<HaPanelStatus>('/integrations/home-assistant/panel/origins', { origins }),
   createLink: () => api.post<{ key: string }>('/integrations/home-assistant/panel/link'),
+}
+
+export const wallApi = {
+  save: (layout: WallLayout) => api.put<WallLayout>('/wall', layout),
 }
 
 export const channelApi = {
@@ -246,6 +251,7 @@ export const queryKeys = {
   privacy: ['system', 'privacy'] as const,
   haPanel: ['integrations', 'ha-panel'] as const,
   buildChannel: ['system', 'channel'] as const,
+  wall: ['wall'] as const,
   // Lists and per-camera resources deliberately have different prefixes.
   // Invalidating the camera list must not re-run an active Tapo capability
   // query: that consumes one of the vendor pool's scarce workers.

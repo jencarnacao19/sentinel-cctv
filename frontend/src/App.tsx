@@ -12,6 +12,7 @@ import { LivePage } from '@/features/live/LivePage'
 import { CameraHealthPage } from '@/features/reliability/CameraHealthPage'
 import { HomeAssistantPage } from '@/features/home-assistant/HomeAssistantPage'
 import { SettingsPage } from '@/features/settings/SettingsPage'
+import { WallPage } from '@/features/wall/WallPage'
 import { StoragePage } from '@/features/storage/StoragePage'
 import { TimelinePage, ViewerTimelinePage } from '@/features/timeline/TimelinePage'
 import { ClipsPage } from '@/features/timeline/ClipsPage'
@@ -151,6 +152,7 @@ export function App() {
         <Route path="storage" element={<StoragePage />} />
         <Route path="system" element={<SystemPage />} />
         <Route path="home-assistant" element={<HomeAssistantPage />} />
+        <Route path="wall" element={<WallPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
