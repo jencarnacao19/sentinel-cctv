@@ -9,33 +9,47 @@ requirements are described in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-10-31
+
 ### Added
 
-- **Live video in Home Assistant.** Each camera entity streams natively
-  (WebRTC at home, HLS elsewhere) from Sentinel's relay, protected by a password
-  derived from the install secret, instead of showing snapshots only. On by
-  default; `SENTINEL_HOME_ASSISTANT_LIVE=false` keeps the relay on loopback.
+- **Home Assistant automations from the administration.** Configure →
+  Automations creates them for you: motion in a camera or zone notifies phones
+  (with the picture), problems notify phones, motion turns lights on or sounds
+  an armed alarm, and an empty home records the cameras you choose. Home
+  Assistant writes them only after its owner turns on "Let Sentinel create
+  automations" in the integration's options, and only with those actions; one
+  edited in Home Assistant is left alone until given back to Sentinel.
+- **Arrange the camera wall.** Configure → Camera wall chooses which cameras
+  every wall shows, their order and the default grid. On the wall, Default
+  follows it and 1–4 per row stays a per-device choice.
+
+### Fixed
+
+- Home Assistant discovers Sentinel on its LAN address instead of the Docker
+  bridge (`172.17.0.1`), which it could not reach.
+- The setup's Home Assistant step links to HACS.
+
+## [2.1.0] - 2026-10-31
+
+### Added
+
 - **Home Assistant page in the administration.** Configure → Home Assistant
   creates the panel link, saves the Home Assistant addresses allowed to show it
   and walks through adding it as a Webpage dashboard, with the optional
   integration below. No `.env` editing: a key and addresses set there keep
   working. Only a fingerprint of the link's key is stored, and a new link stops
   the old one.
-- **Home Assistant automations from the administration.** Configure →
-  Automations creates them for you: motion in a camera or zone notifies phones
-  (with the picture), problems notify phones, motion turns lights on or sounds
-  an armed alarm, and an empty home records the indoor cameras. Home Assistant
-  writes them only after its owner turns on "Let Sentinel create automations"
-  in the integration's options, and only with those actions; one edited in Home
-  Assistant is left alone until given back to Sentinel.
-- **Arrange the camera wall.** Configure → Camera wall chooses which cameras
-  every wall shows, their order and the default grid. On the wall, Default
-  follows it and 1–4 per row stays a per-device choice.
 - **Switch between the stable and the dev build.** Settings → Build asks for the
   build's name in capitals, then a small helper the installer adds inside the
   container backs up the database and `compose.yml`, switches the image and
   restores the previous build if the new one does not start healthily. Sentinel
-  itself never gets access to Docker.
+  itself never gets access to Docker. Existing installations get the helper by
+  running the installer's update.
+- **Live video in Home Assistant.** Each camera entity streams natively
+  (WebRTC at home, HLS elsewhere) from Sentinel's relay, protected by a password
+  derived from the install secret, instead of showing snapshots only. On by
+  default; `SENTINEL_HOME_ASSISTANT_LIVE=false` keeps the relay on loopback.
 
 ### Changed
 
@@ -44,11 +58,21 @@ requirements are described in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
   instead of waiting on MSE or HLS through the HTTPS proxy; away from home it
   falls back to them after 2.5 seconds. Each camera shows its last frame from
   this device while it connects.
+- The setup's Home Assistant step installs the integration from HACS's default
+  list and opens the right pages of your own Home Assistant.
+
+## [2.0.1] - 2026-10-31
 
 ### Fixed
 
-- The Home Assistant integration loads every camera on Home Assistant 2026.10,
-  which refuses camera devices linked with `via_device`.
+- The Home Assistant integration loads every camera on Home Assistant 2026.10.
+  That release refuses devices linked with `via_device`, so every camera but one
+  failed with "Error adding entity None for domain camera"; camera devices now
+  link to the server with `via_device_id`, and older releases keep `via_device`.
+- The camera wall opens without waiting for the administrator sign-in status.
+  Behind an access proxy that keeps the administration API private, as for the
+  Home Assistant panel, that request failed and was retried a second later
+  before any camera started.
 
 ## [2.0.0] - 2026-10-18
 
@@ -593,6 +617,9 @@ the dev build.
   mypy, pytest, eslint, tsc, vitest, the production build and an image build
   gated on the container actually reporting healthy.
 
-[Unreleased]: https://github.com/jencarnacao19/sentinel-cctv/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/jencarnacao19/sentinel-cctv/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/jencarnacao19/sentinel-cctv/compare/v2.1.0...v2.2.0
+[2.1.0]: https://github.com/jencarnacao19/sentinel-cctv/compare/v2.0.1...v2.1.0
+[2.0.1]: https://github.com/jencarnacao19/sentinel-cctv/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/jencarnacao19/sentinel-cctv/compare/v0.1.0...v2.0.0
 [0.1.0]: https://github.com/jencarnacao19/sentinel-cctv/releases/tag/v0.1.0

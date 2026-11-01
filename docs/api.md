@@ -538,7 +538,7 @@ curl https://sentinel.example.lan/api/v1/system/health
     "recording": { "state": "ok", "data": { "expected": 3, "running": 3 } },
     "motion": { "state": "ok", "data": { "expected": 2, "running": 2 } }
   },
-  "version": "2.0.0",
+  "version": "2.2.0",
   "uptime_seconds": 154302.9
 }
 ```
