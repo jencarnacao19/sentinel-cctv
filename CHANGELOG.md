@@ -9,6 +9,16 @@ requirements are described in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 
 ## [Unreleased]
 
+### Added
+
+- **Automatic recording for Tapo battery cameras.** In the Timed recording tab,
+  a battery camera can record when it wakes up by itself (a standalone TC82
+  only, and only if the wake lasts more than a few seconds), or when another
+  camera detects motion, which also wakes it. Both are off by default and each
+  has its own duration. Waking a standalone TC82 needs its MAC address pinned
+  on the server. See `docs/TC82_LOCAL_PROVIDER.md`.
+- Timed recordings can now be 1 or 2 minutes long.
+
 ### Changed
 
 - **Playback rebuilt.** Recordings play as an HLS stream that Sentinel builds

@@ -13,8 +13,10 @@ Everything about the design follows from that being a bounded exception:
 * only one runs per camera, and it shares the same reservation as live view, so
   a timed recording and a live view can never fight over the radio;
 * global privacy mode, the Stop button and server shutdown all end it at once;
-* nothing here is ever started automatically -- there is no schedule, no motion
-  trigger and no retry-tomorrow. A session exists because a person asked for it.
+* nothing here starts a session on its own. A person asks for one, or turns on
+  one of the per-camera triggers in :mod:`app.cameras.tapo_auto`, which then
+  asks for a bounded session exactly as a person would. There is no schedule
+  and no retry-tomorrow.
 
 **Partial results are first-class.** Battery firmware closes the Direct Stream
 on its own, batteries go flat, and servers get restarted. In every one of those
@@ -59,7 +61,7 @@ from app.storage.root import get_storage_root
 logger = get_logger("CAMERA")
 
 #: Offered in the interface. Anything else has to be typed deliberately.
-DURATION_PRESETS_MINUTES: tuple[int, ...] = (5, 10, 15, 30, 60)
+DURATION_PRESETS_MINUTES: tuple[int, ...] = (1, 2, 5, 10, 15, 30, 60)
 
 #: The absolute ceiling, independent of any administrator setting. Two hours of
 #: continuous radio and encoder use is already far beyond what this hardware is
@@ -464,7 +466,7 @@ class TimedRecordingManager:
             self._sessions[camera.id] = session
 
         logger.warning(
-            "Timed Tapo battery recording started by an administrator",
+            "Timed Tapo battery recording started",
             extra={
                 "camera": camera.name,
                 "camera_id": camera.id,

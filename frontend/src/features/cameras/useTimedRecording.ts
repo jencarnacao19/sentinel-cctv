@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { camerasApi, queryKeys } from '@/api/endpoints'
-import type { TimedRecordingStatus } from '@/types/api'
+import type { TapoAutoRecording, TimedRecordingStatus } from '@/types/api'
 
 /**
  * What durations this installation allows, and the charge before confirming.
@@ -62,6 +62,27 @@ export function useStopTimedRecording(cameraId: string) {
         queryClient.invalidateQueries({ queryKey: queryKeys.recordings }),
         queryClient.invalidateQueries({ queryKey: ['timeline'] }),
       ])
+    },
+  })
+}
+
+/** The automatic-recording rules. Settings only; never contacts the camera. */
+export function useTapoAutoRecording(cameraId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.cameraTapoAutoRecording(cameraId),
+    queryFn: () => camerasApi.getTapoAutoRecording(cameraId),
+    enabled: enabled && Boolean(cameraId),
+    retry: false,
+  })
+}
+
+export function useSaveTapoAutoRecording(cameraId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (rules: Omit<TapoAutoRecording, 'on_wake_supported'>) =>
+      camerasApi.setTapoAutoRecording(cameraId, rules),
+    onSuccess: (value: TapoAutoRecording) => {
+      queryClient.setQueryData(queryKeys.cameraTapoAutoRecording(cameraId), value)
     },
   })
 }

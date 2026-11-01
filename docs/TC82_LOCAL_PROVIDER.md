@@ -66,7 +66,7 @@ which it stops recording and stays offline until charged. Starting requires
 explicitly accepting that cost; the API refuses a request without
 `accept_battery_drain: true`.
 
-Durations are 5, 10, 15, 30 or 60 minutes, or a custom value up to a ceiling an
+Durations are 1, 2, 5, 10, 15, 30 or 60 minutes, or a custom value up to a ceiling an
 administrator sets with
 `PUT /api/v1/cameras/tapo-battery/timed-recording/max-minutes`. Sentinel's own
 hard limit is 120 minutes and cannot be raised: two hours of continuous radio
@@ -103,8 +103,48 @@ If the firmware closes the Direct Stream before the timer ends, Sentinel reopens
 it over the LAN with backoff (2 s, 4 s, 8 s, 15 s, 30 s), giving up after six
 consecutive failures or when the timer expires — whichever comes first. The
 TP-Link cloud is never contacted, on this path or any other. Only one live view
-*or* timed recording may be open per camera, and nothing starts a session
-automatically: there is no schedule, no motion trigger and no retry tomorrow.
+*or* timed recording may be open per camera. A session starts only when a
+person asks for one or turns on automatic recording (below); there is no
+schedule and no retry tomorrow.
+
+## Automatic recording
+
+The **Timed recording** tab also has two switches, both off until turned on,
+each with its own duration. They start the same bounded session a person would.
+
+- **When it wakes up by itself** (standalone TC82 only). Sentinel pings the
+  camera every 2 seconds. A sleeping TC82 does not answer, and the ping does
+  not wake it. When the camera's own motion sensor wakes it and it stays awake
+  for more than 6 seconds, Sentinel records. Shorter wakes are the camera
+  checking in, and are ignored. The first few seconds of the motion are not in
+  the clip.
+- **When another camera sees motion.** Sentinel opens the Direct Stream, which
+  wakes the camera, and records. If a live view or a recording is already open,
+  nothing new starts.
+
+Both keep the camera awake for the chosen time, so the battery lasts weeks
+rather than months.
+
+**Network requirements for a standalone TC82.** While it sleeps, the camera
+ignores the broadcast ARP request that asks for its address, so the server
+cannot reach it at all. Two settings on the host that runs Sentinel fix this:
+
+1. Pin the camera's MAC address. With the address pinned, traffic is sent
+   straight to the camera, and opening the Direct Stream wakes it in about 2
+   seconds. Use a DHCP reservation on the router so the address stays the same.
+
+   ```sh
+   ip neigh replace <camera-ip> lladdr <camera-mac> dev <interface> nud permanent
+   ```
+
+   Run this at boot, for example from a systemd oneshot unit.
+2. Let the container ping. Set `net.ipv4.ping_group_range` so that it covers
+   the Sentinel user's group. On a plain host, `0 2147483647` works. An
+   unprivileged LXC container accepts only its mapped groups, so use
+   `0 65535` there.
+
+If pinging is not allowed, Sentinel logs a warning once and only the motion
+trigger works.
 
 ## Real-device acceptance checklist
 

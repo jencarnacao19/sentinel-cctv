@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { apiFetch } from '@/api/client'
 import { camerasApi } from '@/api/endpoints'
+import { AutoRecordingPanel } from '@/features/cameras/AutoRecordingPanel'
 import { TimedRecordingPanel } from '@/features/cameras/TimedRecordingPanel'
 import { isHlsSupported, prefersNativeHls } from '@/features/live/hls'
 import { useFullscreen } from '@/features/timeline/useFullscreen'
@@ -490,12 +491,13 @@ export function TapoBatteryDialog({ camera, open, onOpenChange }: Props) {
           )}
 
           {activeTab === 'recording' && (
-            <section aria-label="Timed recording">
+            <section aria-label="Timed recording" className="space-y-4">
               <TimedRecordingPanel
                 camera={camera}
                 open={open}
                 batteryPercent={value?.battery_percent ?? null}
               />
+              <AutoRecordingPanel camera={camera} open={open} />
             </section>
           )}
 

@@ -261,7 +261,7 @@ async def _segments() -> list[RecordingSegment]:
 
 
 class TestDurationBounds:
-    @pytest.mark.parametrize("minutes", [5, 10, 15, 30, 60])
+    @pytest.mark.parametrize("minutes", [1, 2, 5, 10, 15, 30, 60])
     def test_the_offered_presets_are_all_accepted(self, minutes: int) -> None:
         assert tapo_timed.resolve_duration(minutes, configured_max=60) == minutes * 60
 
@@ -292,7 +292,7 @@ class TestApiBoundaries:
         )
         assert response.status_code == 200, response.text
         body = response.json()
-        assert body["presets_minutes"] == [5, 10, 15, 30, 60]
+        assert body["presets_minutes"] == [1, 2, 5, 10, 15, 30, 60]
         assert body["battery_percent"] is None
         assert "flatten the battery" in body["warning"]
         assert body["hard_max_minutes"] == 120
@@ -306,7 +306,7 @@ class TestApiBoundaries:
         )
         assert updated.status_code == 200, updated.text
         assert updated.json()["max_minutes"] == 15
-        assert updated.json()["presets_minutes"] == [5, 10, 15]
+        assert updated.json()["presets_minutes"] == [1, 2, 5, 10, 15]
 
         refused = await admin_client.post(
             f"/api/v1/cameras/{camera['id']}/tapo-battery/timed-recording",

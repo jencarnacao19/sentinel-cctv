@@ -32,6 +32,7 @@ import type {
   StreamTestResult,
   SystemInfo,
   TapoAction,
+  TapoAutoRecording,
   TapoBatteryClip,
   TapoBatteryStatus,
   TapoBatterySyncResult,
@@ -269,6 +270,13 @@ export const camerasApi = {
       `/cameras/${encodeURIComponent(id)}/tapo-battery/timed-recording`,
       { timeoutMs: 60_000 },
     ),
+  getTapoAutoRecording: (id: string) =>
+    api.get<TapoAutoRecording>(`/cameras/${encodeURIComponent(id)}/tapo-battery/auto-recording`),
+  setTapoAutoRecording: (id: string, rules: Omit<TapoAutoRecording, 'on_wake_supported'>) =>
+    api.put<TapoAutoRecording>(
+      `/cameras/${encodeURIComponent(id)}/tapo-battery/auto-recording`,
+      rules,
+    ),
 }
 
 export interface SegmentQuery {
@@ -328,6 +336,8 @@ export const queryKeys = {
     ['cameras', 'detail', id, 'timed-recording'] as const,
   cameraTimedRecordingOptions: (id: string) =>
     ['cameras', 'detail', id, 'timed-recording', 'options'] as const,
+  cameraTapoAutoRecording: (id: string) =>
+    ['cameras', 'detail', id, 'tapo-auto-recording'] as const,
   recordings: ['recordings'] as const,
   recorderStatus: ['recordings', 'status'] as const,
 }

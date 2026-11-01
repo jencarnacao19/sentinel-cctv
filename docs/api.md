@@ -258,6 +258,7 @@ mode is active. A saved battery camera has `kind=tapo_battery`, no RTSP URL,
 | GET | `/cameras/{id}/tapo-battery/timed-recording` | any principal | Progress of a running session, or `null`. Answered from memory and never contacts the camera, so it is safe to poll every second against a device on a battery. |
 | POST | `/cameras/{id}/tapo-battery/timed-recording` | admin | Starts a bounded recording. Body `{"minutes": int, "accept_battery_drain": true}`; the flag is the administrator explicitly accepting that the camera stays awake and may end up flat. Returns `202` as soon as the camera has answered — the recording itself is not held open behind the request, because a proxy would cut an hour-long one off long before it finished. |
 | DELETE | `/cameras/{id}/tapo-battery/timed-recording` | admin | Stops the session and keeps what was captured. |
+| GET/PUT | `/cameras/{id}/tapo-battery/auto-recording` | admin | Automatic recording rules: `on_wake`/`on_wake_minutes` record when a standalone camera wakes up by itself, and `on_motion`/`on_motion_minutes` wake and record it when another camera detects motion. Both are off by default. Durations follow the timed-recording ceiling. `on_wake` is refused for a hub camera (`on_wake_supported: false`). |
 
 The protected viewer camera list includes battery cameras so imported clips are
 selectable in Home Assistant playback, but its live wall renders an inert event
@@ -272,9 +273,9 @@ committed: a crash between the two leaves it on disk, and the next start-up
 finalises and indexes it. Every way a session can end early — the firmware
 closing the stream, privacy mode, a manual stop, the server shutting down, the
 battery running out — keeps the clip and reports the duration actually captured.
-Reconnection after an early close is bounded, backed off and LAN-only. Nothing
-starts a session automatically, and only one live view *or* timed recording may
-be open per camera.
+Reconnection after an early close is bounded, backed off and LAN-only. A session
+starts only on request or through the per-camera automatic-recording rules, and
+only one live view *or* timed recording may be open per camera.
 
 ### Local Tapo control (`backend/app/cameras/tapo_router.py`, prefix `/cameras`)
 

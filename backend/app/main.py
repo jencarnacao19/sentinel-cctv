@@ -26,6 +26,7 @@ from app import __version__
 from app.api import api_router
 from app.cameras import vendor_pool
 from app.cameras.ptz import get_manager as get_ptz_manager
+from app.cameras.tapo_auto import get_recorder as get_auto_recorder
 from app.cameras.tapo_battery import get_manager as get_tapo_battery_manager
 from app.cameras.tapo_timed import get_manager as get_timed_manager
 from app.config import Settings, get_settings
@@ -154,6 +155,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # timeline instead of sitting on disk as an orphaned part file.
     timed = get_timed_manager()
     await timed.start()
+    # Watches for battery-camera wakes and motion elsewhere; does nothing for a
+    # camera until its automatic recording is switched on.
+    auto_recorder = get_auto_recorder()
+    if settings.enable_tapo_battery_provider:
+        await auto_recorder.start()
 
     # Announced last, and deliberately allowed to fail: on a network where
     # multicast does not work, nobody notices a missing mDNS record, but
@@ -175,6 +181,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # Reverse of start-up: recorders get their SIGTERM first so FFmpeg can
         # finalise the segment it is writing before its input goes away.
         await mdns.stop()
+        await auto_recorder.stop()
         await reliability.stop()
         await exports.stop()
         # A cleanup finishes its current small batch before the recorder and

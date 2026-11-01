@@ -23,6 +23,9 @@ from app.auth.deps import (
 )
 from app.auth.ratelimit import expensive_limiter
 from app.cameras import service
+from app.cameras.tapo_auto import SETTING_KEY as AUTO_SETTING_KEY
+from app.cameras.tapo_auto import AutoRules, supports_wake_detection
+from app.cameras.tapo_auto import get_recorder as get_auto_recorder
 from app.cameras.tapo_battery import (
     BatteryTarget,
     RemoteClip,
@@ -33,6 +36,8 @@ from app.cameras.tapo_battery import (
     get_manager,
 )
 from app.cameras.tapo_battery_schemas import (
+    AutoRecordingResponse,
+    AutoRecordingUpdate,
     BatteryClipResponse,
     BatteryConnectionTestRequest,
     BatteryStatusResponse,
@@ -658,3 +663,72 @@ async def stop_timed_recording(
     except TimedRecordingError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return TimedRecordingStatusResponse.from_status(value)
+
+
+# --- automatic recording ---------------------------------------------------
+
+
+async def _stored_auto_rules(session: AsyncSession) -> dict[str, object]:
+    stored = await settings_store.get_setting(session, AUTO_SETTING_KEY, {})
+    return dict(stored) if isinstance(stored, dict) else {}
+
+
+def _auto_response(camera: Camera, rules: AutoRules) -> AutoRecordingResponse:
+    return AutoRecordingResponse(
+        on_wake=rules.on_wake,
+        on_wake_minutes=rules.on_wake_minutes,
+        on_motion=rules.on_motion,
+        on_motion_minutes=rules.on_motion_minutes,
+        on_wake_supported=supports_wake_detection(camera),
+    )
+
+
+@router.get(
+    "/{camera_id}/tapo-battery/auto-recording",
+    response_model=AutoRecordingResponse,
+    summary="When this battery camera records on its own",
+)
+async def read_auto_recording(
+    camera_id: str,
+    _: AdminPrincipal,
+    session: SessionDep,
+    settings: SettingsDep,
+) -> AutoRecordingResponse:
+    _enabled(settings)
+    camera = await _load(session, camera_id)
+    stored = await _stored_auto_rules(session)
+    return _auto_response(camera, AutoRules.from_stored(stored.get(camera.id)))
+
+
+@router.put(
+    "/{camera_id}/tapo-battery/auto-recording",
+    response_model=AutoRecordingResponse,
+    summary="Choose when this battery camera records on its own",
+)
+async def set_auto_recording(
+    camera_id: str,
+    payload: AutoRecordingUpdate,
+    _: AdminPrincipal,
+    session: SessionDep,
+    settings: SettingsDep,
+) -> AutoRecordingResponse:
+    _enabled(settings)
+    camera = await _load(session, camera_id)
+    if payload.on_wake and not supports_wake_detection(camera):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="A camera behind a hub cannot be watched for wakes; the hub is always awake.",
+        )
+    ceiling = await _configured_max_minutes(session)
+    try:
+        for minutes in (payload.on_wake_minutes, payload.on_motion_minutes):
+            resolve_duration(minutes, configured_max=ceiling)
+    except TimedRecordingError as exc:
+        raise _translate_timed(exc) from exc
+
+    stored = await _stored_auto_rules(session)
+    stored[camera.id] = payload.model_dump()
+    await settings_store.set_setting(session, AUTO_SETTING_KEY, stored)
+    await session.commit()
+    get_auto_recorder().invalidate()
+    return _auto_response(camera, AutoRules.from_stored(stored[camera.id]))

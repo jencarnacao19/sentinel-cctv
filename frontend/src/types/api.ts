@@ -486,6 +486,16 @@ export interface TimedRecordingOptions {
   warning: string
 }
 
+/** When a battery camera records without anyone pressing Start. */
+export interface TapoAutoRecording {
+  on_wake: boolean
+  on_wake_minutes: number
+  on_motion: boolean
+  on_motion_minutes: number
+  /** False behind a hub: the hub is always awake, so its wakes cannot be seen. */
+  on_wake_supported: boolean
+}
+
 export interface TimedRecordingStatus {
   camera_id: string
   state: TimedRecordingState

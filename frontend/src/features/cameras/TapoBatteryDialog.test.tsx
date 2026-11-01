@@ -76,6 +76,17 @@ describe('TapoBatteryDialog', () => {
       if (url.includes('/timed-recording')) {
         return Promise.resolve(json(null))
       }
+      if (url.includes('/auto-recording')) {
+        return Promise.resolve(
+          json({
+            on_wake: false,
+            on_wake_minutes: 2,
+            on_motion: false,
+            on_motion_minutes: 2,
+            on_wake_supported: true,
+          }),
+        )
+      }
       return Promise.reject(new Error(`Unexpected request to ${url}`))
     })
     vi.stubGlobal('fetch', fetchMock)
@@ -108,6 +119,9 @@ describe('TapoBatteryDialog', () => {
     // Switch to Timed Recording tab
     await user.click(screen.getByRole('tab', { name: /timed recording/i }))
     expect(screen.getByRole('region', { name: 'Timed recording' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('switch', { name: 'When another camera sees motion' }),
+    ).not.toBeChecked()
 
     // Switch to Event Clips tab
     await user.click(screen.getByRole('tab', { name: /event clips/i }))

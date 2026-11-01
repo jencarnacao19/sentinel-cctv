@@ -170,3 +170,23 @@ class TimedRecordingStatusResponse(BaseModel):
             segment_id=value.segment_id,
             finished=value.finished,
         )
+
+
+class AutoRecordingUpdate(BaseModel):
+    """When this camera records without anyone pressing Start."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    on_wake: bool = False
+    """Record when the camera wakes up on its own (standalone cameras only)."""
+    on_wake_minutes: int = Field(default=2, ge=1, le=120)
+    on_motion: bool = False
+    """Wake the camera and record when any other camera detects motion."""
+    on_motion_minutes: int = Field(default=2, ge=1, le=120)
+
+
+class AutoRecordingResponse(AutoRecordingUpdate):
+    model_config = ConfigDict(extra="ignore")
+
+    on_wake_supported: bool
+    """False for a hub camera: the hub is always awake, so its wakes cannot be seen."""
