@@ -1,4 +1,4 @@
-import { HardDrive, PlugZap, Radio, ShieldAlert, WifiOff } from 'lucide-react'
+import { PlugZap, Radio, ShieldAlert, WifiOff } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { describeFailure, type FailureOptions } from '@/components/system/failure'
@@ -48,50 +48,6 @@ export function RecorderStoppedNotice({ reason }: { reason: string }) {
         Sentinel stops writing rather than filling the system disk. It starts again on its own as
         soon as the recording storage is back — nothing needs to be restarted by hand.
       </p>
-    </Alert>
-  )
-}
-
-/**
- * The disk is filling up.
- *
- * Advisory below the reserve and urgent above it, because the consequence
- * differs: one means older footage will be trimmed sooner than the retention
- * policy promises, the other means recording is about to stop.
- */
-export function DiskPressureNotice({
-  usedPercent,
-  freeLabel,
-  estimatedDaysRemaining,
-}: {
-  usedPercent: number
-  freeLabel: string
-  estimatedDaysRemaining?: number | null
-}) {
-  if (!Number.isFinite(usedPercent) || usedPercent < 85) return null
-  const critical = usedPercent >= 95
-  const horizon =
-    estimatedDaysRemaining != null && Number.isFinite(estimatedDaysRemaining)
-      ? ` At the current rate that is about ${
-          estimatedDaysRemaining < 1
-            ? `${Math.max(Math.round(estimatedDaysRemaining * 24), 1)} hours`
-            : `${Math.round(estimatedDaysRemaining)} days`
-        } of headroom.`
-      : ''
-
-  return (
-    <Alert
-      variant={critical ? 'danger' : 'warning'}
-      title={
-        critical
-          ? `Recording storage is ${Math.round(usedPercent)}% full`
-          : `Recording storage is filling up (${Math.round(usedPercent)}% used)`
-      }
-      icon={<HardDrive />}
-    >
-      {critical
-        ? `Only ${freeLabel} is free. Sentinel is deleting the oldest unprotected recordings to keep going, so footage may not reach the retention you configured.${horizon} Reduce retention, or add storage.`
-        : `${freeLabel} free.${horizon} Sentinel trims the oldest unprotected recordings automatically; saved clips are never removed this way.`}
     </Alert>
   )
 }

@@ -6,7 +6,6 @@ import { queryKeys, recordingsApi, systemApi } from '@/api/endpoints'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { EmptyState } from '@/components/EmptyState'
 import {
-  DiskPressureNotice,
   FailureNotice,
   RecorderStoppedNotice,
 } from '@/components/system/StateNotice'
@@ -67,10 +66,6 @@ export function DashboardPage() {
 
   const online = cameras.data?.filter((camera) => camera.status === 'online').length ?? 0
   const offline = (cameras.data?.length ?? 0) - online
-  const usedPercent =
-    recorder.data && recorder.data.total_bytes > 0
-      ? ((recorder.data.total_bytes - recorder.data.free_bytes) / recorder.data.total_bytes) * 100
-      : null
 
   return (
     <div className="mx-auto max-w-7xl space-y-5">
@@ -83,15 +78,10 @@ export function DashboardPage() {
         <FailureNotice error={health.error} action="reading server health" />
       ) : null}
 
-      {/* Ordered by consequence: nothing being recorded, then storage that will
-          stop it, then everything else. */}
+      {/* A full disk is normal: retention trims the oldest footage. Only a stopped
+          recorder is worth interrupting the page for. */}
       {recorder.data?.suspended_reason ? (
         <RecorderStoppedNotice reason={recorder.data.suspended_reason} />
-      ) : usedPercent != null ? (
-        <DiskPressureNotice
-          usedPercent={usedPercent}
-          freeLabel={formatBytes(recorder.data?.free_bytes)}
-        />
       ) : null}
 
       <section

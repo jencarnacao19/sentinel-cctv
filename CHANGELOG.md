@@ -9,6 +9,12 @@ requirements are described in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 
 ## [Unreleased]
 
+### Changed
+
+- The dashboard no longer warns that the recording disk is nearly full. A full
+  disk is the normal state: retention removes the oldest footage. A recorder
+  that stops is still reported.
+
 ## [2.2.0] - 2026-10-31
 
 ### Added
