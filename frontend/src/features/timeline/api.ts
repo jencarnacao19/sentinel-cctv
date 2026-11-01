@@ -3,8 +3,7 @@ import type {
   ExportCreate,
   ExportJob,
   ExportList,
-  PlaybackManifest,
-  PlaybackTarget,
+  PlaybackSession,
   Timeline,
 } from '@/features/timeline/types'
 import { viewerApi } from '@/features/viewer/access'
@@ -21,13 +20,9 @@ export const timelineApi = {
 }
 
 export const playbackApi = {
-  manifest: (cameraId: string, start: Date, end: Date, viewer = false) =>
-    (viewer ? viewerApi : api).get<PlaybackManifest>(
-      `/${viewer ? 'viewer/cameras' : 'cameras'}/${cameraId}/playback/manifest?${rangeParams(start, end)}`,
-    ),
-  seek: (cameraId: string, at: Date, viewer = false) =>
-    (viewer ? viewerApi : api).get<PlaybackTarget>(
-      `/${viewer ? 'viewer/cameras' : 'cameras'}/${cameraId}/playback/seek?${new URLSearchParams({ at: at.toISOString() })}`,
+  session: (cameraId: string, at: Date, viewer = false) =>
+    (viewer ? viewerApi : api).post<PlaybackSession>(
+      `/${viewer ? 'viewer/cameras' : 'cameras'}/${cameraId}/playback/session?${new URLSearchParams({ at: at.toISOString() })}`,
     ),
 }
 
@@ -51,8 +46,6 @@ export const exportsApi = {
 export const queryKeys = {
   timeline: (cameraId: string, start: Date, end: Date, viewer = false) =>
     ['timeline', { viewer }, cameraId, start.toISOString(), end.toISOString()] as const,
-  manifest: (cameraId: string, start: Date, end: Date, viewer = false) =>
-    ['playback-manifest', { viewer }, cameraId, start.toISOString(), end.toISOString()] as const,
   exports: (cameraId?: string, viewer = false) =>
     ['exports', { viewer, cameraId: cameraId ?? null }] as const,
   export: (id: string) => ['exports', 'detail', id] as const,

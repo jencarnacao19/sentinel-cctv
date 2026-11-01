@@ -27,6 +27,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "hls.js": "1.7.3",
     "lucide-react": "^0.475.0",
     "mpegts.js": "^1.8.2",
     "react": "^19.0.0",

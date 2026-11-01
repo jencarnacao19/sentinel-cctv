@@ -30,6 +30,7 @@ from app.recording.playback import ManifestItem, PlaybackManifest
 from app.recording.timeline import Gap, GapReason, MotionBand, PlaybackTarget, Timeline, TimeSpan
 from app.security.paths import UnsafePathError
 from app.storage.root import get_storage_root
+from app.streaming.hls import recording_sessions
 
 router = APIRouter(prefix="/cameras", tags=["timeline"])
 exports_router = APIRouter(prefix="/exports", tags=["exports"])
@@ -287,6 +288,68 @@ async def seek_playback(
     await _load_camera(session, camera_id)
     target = await playback.resolve_seek(session, camera_id, at)
     return PlaybackTargetResponse.from_target(target)
+
+
+class PlaybackSessionItem(BaseModel):
+    started_at: datetime
+    position: float
+    """Where this stretch starts on the player's own timeline, in seconds."""
+    duration: float
+
+
+class PlaybackSessionResponse(BaseModel):
+    """An HLS playlist of up to an hour of footage, behind a bearer grant.
+
+    Native players (Safari, the Home Assistant iOS app) cannot attach
+    Sentinel's headers to the requests they make, so the playlist and its
+    chunks are reached through an opaque, camera-scoped token in the URL.
+    """
+
+    url: str | None
+    """``None`` when nothing was recorded in the hour after the instant."""
+    start_position: float
+    items: list[PlaybackSessionItem]
+    end: datetime | None
+    """Wall-clock end of this playlist: open the next one from here."""
+    next_at: datetime | None
+    """With no ``url``: the next instant that has footage, if any."""
+
+
+async def open_playback_session(
+    session: AsyncSession, camera_id: str, at: datetime
+) -> PlaybackSessionResponse:
+    """Shared by the operator and viewer endpoints; the caller authorises."""
+    root = await get_storage_root(session)
+    playlist = await playback.build_playlist(session, camera_id, at, root=root)
+    url = None
+    if playlist.text:
+        token = recording_sessions.issue(camera_id, "", payload=playlist)
+        url = f"/api/v1/streams/{camera_id}/recordings/{token}/index.m3u8"
+    return PlaybackSessionResponse(
+        url=url,
+        start_position=playlist.start_position,
+        items=[
+            PlaybackSessionItem(started_at=i.started_at, position=i.position, duration=i.duration)
+            for i in playlist.items
+        ],
+        end=playlist.end,
+        next_at=playlist.next_at,
+    )
+
+
+@router.post(
+    "/{camera_id}/playback/session",
+    response_model=PlaybackSessionResponse,
+    summary="Open an HLS playlist of recorded footage from an instant",
+)
+async def create_playback_session(
+    camera_id: str,
+    _: CurrentPrincipal,
+    session: SessionDep,
+    at: datetime = Query(..., description="UTC instant to start from"),
+) -> PlaybackSessionResponse:
+    await _load_camera(session, camera_id)
+    return await open_playback_session(session, camera_id, at)
 
 
 # --- Export schemas ----------------------------------------------------------

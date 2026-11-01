@@ -142,6 +142,7 @@ several channels of one recorder share one. See
 | GET | `/viewer/cameras/{id}/timeline` | viewer | Recording coverage, gaps and motion for an enabled camera. |
 | GET | `/viewer/cameras/{id}/playback/manifest` | viewer | Ordered playback segments with viewer-only download URLs. |
 | GET | `/viewer/cameras/{id}/playback/seek` | viewer | Resolves a wall-clock instant to a playable segment and offset. |
+| POST | `/viewer/cameras/{id}/playback/session` | viewer | Same as `/cameras/{id}/playback/session`, for an enabled camera. |
 | GET | `/viewer/recordings/{segment_id}/download` | viewer | Streams one segment through the confined range-download implementation. |
 | POST | `/viewer/exports` | viewer | Creates a rate-limited, permanently protected saved clip. |
 | GET | `/viewer/exports` | viewer | Lists saved clips for one enabled camera. |
@@ -333,6 +334,7 @@ address, and the TP-Link cloud password is never transmitted.
 | GET | `/cameras/{id}/timeline` | any | Coverage, gaps and motion bands for a UTC `start`/`end` range. |
 | GET | `/cameras/{id}/playback/manifest` | any | Ordered playable segments for a UTC range. |
 | GET | `/cameras/{id}/playback/seek` | any | Resolve UTC `at` to a segment, offset or the next footage. |
+| POST | `/cameras/{id}/playback/session` | any | Opens an HLS playlist of up to an hour of footage from UTC `at`. Returns `url` (an opaque, camera-scoped grant under `/streams/{id}/recordings/`), `start_position`, the wall-clock `items` of the playlist, its `end`, and `next_at` when the hour has no footage. The playlist addresses the recorded files by byte range, a few seconds per request, without re-encoding. |
 
 ### Clip exports (`backend/app/recording/timeline_router.py`, prefix `/exports`)
 

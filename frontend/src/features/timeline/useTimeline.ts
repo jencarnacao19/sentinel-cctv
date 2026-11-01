@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { exportsApi, playbackApi, queryKeys, timelineApi } from '@/features/timeline/api'
+import { exportsApi, queryKeys, timelineApi } from '@/features/timeline/api'
 import { isExportActive, type ExportCreate } from '@/features/timeline/types'
 
 export function useTimeline(cameraId: string, start: Date, end: Date, viewer = false) {
@@ -12,22 +12,6 @@ export function useTimeline(cameraId: string, start: Date, end: Date, viewer = f
     // is already loaded does not need refetching every render, only when
     // the visible window itself changes.
     staleTime: 15_000,
-  })
-}
-
-export function usePlaybackManifest(
-  cameraId: string,
-  start: Date | null,
-  end: Date | null,
-  viewer = false,
-) {
-  return useQuery({
-    queryKey:
-      start && end
-        ? queryKeys.manifest(cameraId, start, end, viewer)
-        : (['playback-manifest', 'idle', { viewer }] as const),
-    queryFn: () => playbackApi.manifest(cameraId, start as Date, end as Date, viewer),
-    enabled: Boolean(cameraId) && start !== null && end !== null,
   })
 }
 

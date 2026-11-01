@@ -20,6 +20,8 @@ class HlsGrant:
     upstream_id: str
     created_at: float
     last_used: float
+    payload: object = None
+    """Whatever the grant unlocks besides the upstream stream, e.g. a playlist."""
 
 
 class HlsSessionRegistry:
@@ -39,7 +41,7 @@ class HlsSessionRegistry:
         self._clock = clock
         self._grants: dict[str, HlsGrant] = {}
 
-    def issue(self, camera_id: str, upstream_id: str) -> str:
+    def issue(self, camera_id: str, upstream_id: str, payload: object = None) -> str:
         now = self._clock()
         self._prune(now)
         while len(self._grants) >= self._max_sessions:
@@ -51,6 +53,7 @@ class HlsSessionRegistry:
             upstream_id=upstream_id,
             created_at=now,
             last_used=now,
+            payload=payload,
         )
         return token
 
@@ -78,3 +81,9 @@ class HlsSessionRegistry:
 
 
 hls_sessions = HlsSessionRegistry()
+
+#: Recorded-footage playlists. A paused player sends nothing, so the grant
+#: outlives a long pause; it never outlives the hour of footage it covers by much.
+recording_sessions = HlsSessionRegistry(
+    idle_seconds=30 * 60.0, max_lifetime_seconds=6 * 3600.0, max_sessions=64
+)

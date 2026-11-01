@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
-import { PLAYBACK_SPEEDS, type PlaybackSpeed } from '@/features/timeline/playbackBuffer'
+import { PLAYBACK_SPEEDS, type PlaybackSpeed } from '@/features/timeline/playbackSpeed'
 import { cn } from '@/lib/utils'
 
 /**

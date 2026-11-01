@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 import { PlaybackSpeedMenu } from '@/features/timeline/PlaybackSpeedMenu'
-import { PLAYBACK_SPEEDS } from '@/features/timeline/playbackBuffer'
+import { PLAYBACK_SPEEDS } from '@/features/timeline/playbackSpeed'
 
 describe('PlaybackSpeedMenu', () => {
   it('offers exactly the six supported speeds', async () => {

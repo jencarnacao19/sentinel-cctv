@@ -7,9 +7,9 @@
  * the bar moves the playhead; the player advancing moves it back. Keeping that
  * in one place is what stops the two fighting over it.
  *
- * `PlaybackPlayer` is deliberately not React state. It owns a MediaSource, a
- * SourceBuffer and an in-flight fetch queue, none of which survive being
- * recreated on a render, so it lives in a ref for the lifetime of the video
+ * `PlaybackPlayer` is deliberately not React state. It owns the HLS stream
+ * attached to the video element, which does not survive being recreated on a
+ * render, so it lives in a ref for the lifetime of the video
  * element and is told about changes rather than rebuilt from them.
  */
 
@@ -50,7 +50,7 @@ import { TimelineBar } from '@/features/timeline/TimelineBar'
 import { TimelineNavigator } from '@/features/timeline/TimelineNavigator'
 import { PlaybackSpeedMenu } from '@/features/timeline/PlaybackSpeedMenu'
 import { useFullscreen } from '@/features/timeline/useFullscreen'
-import { clampPlaybackRate, type PlaybackSpeed } from '@/features/timeline/playbackBuffer'
+import { clampPlaybackRate, type PlaybackSpeed } from '@/features/timeline/playbackSpeed'
 import { PlaybackPlayer, type PlaybackState } from '@/features/timeline/playbackPlayer'
 import { recentreWindow, type Window as TimeWindow } from '@/features/timeline/timelineMath'
 import { isExportActive, type ExportJob } from '@/features/timeline/types'
@@ -271,7 +271,7 @@ function CameraTimeline({
   const updateExport = useUpdateExport()
 
   // One player per camera, for the life of the video element. Recreating it
-  // on a re-render would tear down the MediaSource mid-playback.
+  // on a re-render would tear down the stream mid-playback.
   useEffect(() => {
     const video = videoRef.current
     if (!video) return
@@ -375,7 +375,7 @@ function CameraTimeline({
    * StrictMode double-invokes updaters, and the previous cycler mutated
    * `videoRef.current.playbackRate` inside one, which could leave the element
    * a step ahead of the rendered label. The player owns the element's rate now
-   * and re-applies it after every seek and fallback, so this only has to tell
+   * and re-applies it after every seek, so this only has to tell
    * it once.
    */
   const changePlaybackRate = useCallback((speed: number) => {
@@ -405,7 +405,7 @@ function CameraTimeline({
               ? // The in-document fallback: a fixed layer over the viewport,
                 // with the safe-area insets an iPhone needs in landscape. The
                 // element is only restyled, never re-parented, so the player
-                // keeps its <video>, its MediaSource and its in-flight fetches.
+                // keeps its <video> and the stream attached to it.
                 'fixed inset-0 z-50 flex flex-col justify-center rounded-none ' +
                   'pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] ' +
                   'pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]'
@@ -423,8 +423,7 @@ function CameraTimeline({
               controls={false}
               onLoadedMetadata={(event) => {
                 // The player also re-applies this after every seek; the element
-                // resets to its default on each load, and a fallback load never
-                // reaches the player's own handler.
+                // resets to its default on each load.
                 event.currentTarget.defaultPlaybackRate = playbackRate
                 event.currentTarget.playbackRate = playbackRate
               }}

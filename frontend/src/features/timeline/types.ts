@@ -43,40 +43,24 @@ export interface Timeline {
   truncated: boolean
 }
 
-export interface ManifestItem {
-  segment_id: string
+/** One recorded file's stretch of a playback playlist. */
+export interface PlaybackSessionItem {
   started_at: string
-  ended_at: string
-  /** Non-zero only for the first item in a manifest. */
-  offset_seconds: number
-  duration_seconds: number
-  url: string
+  /** Where it starts on the player's own timeline, in seconds. */
+  position: number
+  duration: number
 }
 
-export interface PlaybackManifest {
-  camera_id: string
-  start: string
-  end: string
-  items: ManifestItem[]
-  gaps: TimeSpan[]
-  total_seconds: number
-  truncated: boolean
-}
-
-export interface PlaybackTarget {
-  camera_id: string
-  at: string
-  found: boolean
-  segment_id: string | null
+/** An HLS playlist of up to an hour of footage, from `POST .../playback/session`. */
+export interface PlaybackSession {
+  /** `null` when nothing was recorded in the hour after the instant. */
   url: string | null
-  started_at: string | null
-  ended_at: string | null
-  offset_seconds: number
-  next_segment_id: string | null
-  next_url: string | null
-  next_started_at: string | null
-  continuous: boolean
-  gap_seconds: number | null
+  start_position: number
+  items: PlaybackSessionItem[]
+  /** Wall-clock end of this playlist: the next one opens from here. */
+  end: string | null
+  /** With no `url`: the next instant that has footage, if any. */
+  next_at: string | null
 }
 
 export type ExportStatus = 'queued' | 'running' | 'complete' | 'failed' | 'expired' | 'cancelled'

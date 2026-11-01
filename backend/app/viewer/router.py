@@ -33,8 +33,10 @@ from app.recording.timeline_router import (
     ExportListResponse,
     ManifestItemResponse,
     PlaybackManifestResponse,
+    PlaybackSessionResponse,
     PlaybackTargetResponse,
     TimelineResponse,
+    open_playback_session,
 )
 from app.reliability.monitor import get_monitor as get_reliability_monitor
 from app.reliability.schemas import ViewerReliabilityResponse, viewer_response
@@ -426,6 +428,21 @@ async def seek_viewer_playback(
         _viewer_segment_url(target.next_segment_id) if target.next_segment_id else None
     )
     return target
+
+
+@router.post(
+    "/cameras/{camera_id}/playback/session",
+    response_model=PlaybackSessionResponse,
+    summary="Open a viewer HLS playlist of recorded footage",
+)
+async def create_viewer_playback_session(
+    camera_id: str,
+    _: CurrentViewer,
+    session: SessionDep,
+    at: datetime = Query(...),
+) -> PlaybackSessionResponse:
+    await _load_enabled_camera(session, camera_id)
+    return await open_playback_session(session, camera_id, at)
 
 
 @router.get(

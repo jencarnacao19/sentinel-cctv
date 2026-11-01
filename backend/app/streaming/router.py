@@ -26,6 +26,7 @@ from fastapi import (
     WebSocketDisconnect,
     status,
 )
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from websockets.exceptions import WebSocketException
 
@@ -35,10 +36,11 @@ from app.config import Settings, get_settings
 from app.database.models import Camera
 from app.database.session import get_session, get_session_factory
 from app.logging_config import get_logger
+from app.recording.playback import PlaybackPlaylist
 from app.security.origin import websocket_origin_allowed
 from app.streaming.client import Go2RtcUnavailableError
 from app.streaming.config import stream_names
-from app.streaming.hls import HlsGrant, hls_sessions
+from app.streaming.hls import HlsGrant, hls_sessions, recording_sessions
 from app.streaming.manager import get_manager
 from app.system import privacy
 from app.viewer.auth import authorise_viewer, matching_viewer_subprotocol
@@ -508,3 +510,38 @@ async def stream_status(
         "go2rtc": manager.process_status(),
         "known_to_go2rtc": producers is not None,
     }
+
+
+# --- Recorded footage ---------------------------------------------------------
+
+
+def _recording_playlist(camera_id: str, token: str) -> PlaybackPlaylist:
+    grant = recording_sessions.resolve(camera_id, token)
+    if grant is None or not isinstance(grant.payload, PlaybackPlaylist):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Playback expired.")
+    return grant.payload
+
+
+@router.get("/{camera_id}/recordings/{token}/index.m3u8", include_in_schema=False)
+async def recording_playlist(camera_id: str, token: str) -> Response:
+    playlist = _recording_playlist(camera_id, token)
+    return Response(
+        content=playlist.text,
+        media_type="application/vnd.apple.mpegurl",
+        headers={"Cache-Control": "private, no-store"},
+    )
+
+
+@router.get("/{camera_id}/recordings/{token}/{segment_id}.mp4", include_in_schema=False)
+async def recording_file(camera_id: str, token: str, segment_id: str) -> FileResponse:
+    # Only a file this grant's playlist names; the playlist resolved and
+    # confined every path when it was built.
+    path = _recording_playlist(camera_id, token).files.get(segment_id)
+    if path is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recording not found.")
+    if not path.is_file():
+        raise HTTPException(status_code=status.HTTP_410_GONE, detail="Recording was removed.")
+    # FileResponse answers the Range requests every chunk in the playlist is.
+    return FileResponse(
+        path, media_type="video/mp4", headers={"Cache-Control": "private, max-age=3600"}
+    )

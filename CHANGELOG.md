@@ -11,6 +11,13 @@ requirements are described in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 
 ### Changed
 
+- **Playback rebuilt.** Recordings play as an HLS stream that Sentinel builds
+  from the files on disk, a few seconds per request, with no re-encoding. They
+  now play in Home Assistant's iPhone app and Safari (natively) and start as
+  soon as the first few seconds arrive on a computer, H.265 cameras included
+  where the browser can decode them. Before, each minute of footage was downloaded whole first, and
+  iPhones could not play recordings at all.
+
 - The dashboard no longer warns that the recording disk is nearly full. A full
   disk is the normal state: retention removes the oldest footage. A recorder
   that stops is still reported.
