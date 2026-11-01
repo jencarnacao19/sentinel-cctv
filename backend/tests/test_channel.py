@@ -47,6 +47,16 @@ async def test_the_running_build_cannot_be_requested_again(admin_client: AsyncCl
     assert response.status_code == 409
 
 
+async def test_an_update_asks_the_helper_for_the_running_build(
+    admin_client: AsyncClient, settings: Settings
+) -> None:
+    response = await admin_client.post(f"{CHANNEL}/update")
+    assert response.status_code == 202
+    assert response.json()["requested"] == "stable"
+    request = settings.data_dir / "update-request.json"
+    assert json.loads(request.read_text())["channel"] == "stable"
+
+
 async def test_the_helper_reports_are_shown(admin_client: AsyncClient, settings: Settings) -> None:
     (settings.data_dir / "update-helper.json").write_text('{"seen_at": "2026-10-31T10:00:00Z"}')
     (settings.data_dir / "update-status.json").write_text(
@@ -68,4 +78,5 @@ async def test_only_the_administrator_can_switch(
     assert (await client.get(CHANNEL, headers=bearer)).status_code == 403
     response = await client.post(CHANNEL, json={"channel": "dev", "confirm": "DEV"}, headers=bearer)
     assert response.status_code == 403
+    assert (await client.post(f"{CHANNEL}/update", headers=bearer)).status_code == 403
     assert (await client.get(CHANNEL)).status_code == 401

@@ -18,6 +18,10 @@ requirements are described in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
   has its own duration. Waking a standalone TC82 needs its MAC address pinned
   on the server. See `docs/TC82_LOCAL_PROVIDER.md`.
 - Timed recordings can now be 1 or 2 minutes long.
+- **Update button.** Settings → Build → Update installs the newest image of
+  the build the server runs, through the same host helper as the build switch,
+  and says whether there was one. Run the installer with `--update` once to get
+  the new helper.
 
 ### Changed
 
@@ -25,9 +29,8 @@ requirements are described in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
   from the files on disk, a few seconds per request, with no re-encoding. They
   now play in Home Assistant's iPhone app and Safari (natively) and start as
   soon as the first few seconds arrive on a computer, H.265 cameras included
-  where the browser can decode them. Before, each minute of footage was downloaded whole first, and
-  iPhones could not play recordings at all.
-
+  where the browser can decode them. Before, each minute of footage was
+  downloaded whole first, and iPhones could not play recordings at all.
 - The dashboard no longer warns that the recording disk is nearly full. A full
   disk is the normal state: retention removes the oldest footage. A recorder
   that stops is still reported.

@@ -119,6 +119,7 @@ export const channelApi = {
   state: () => api.get<BuildChannelState>('/system/channel'),
   request: (channel: BuildChannel, confirm: string) =>
     api.post<BuildChannelState>('/system/channel', { channel, confirm }),
+  update: () => api.post<BuildChannelState>('/system/channel/update'),
 }
 
 export const camerasApi = {

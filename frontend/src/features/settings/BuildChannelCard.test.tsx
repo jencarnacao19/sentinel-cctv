@@ -12,13 +12,18 @@ function json(body: unknown, status = 202): Response {
   })
 }
 
-function serve(helperSeenAt: string | null) {
-  const state = { current: 'stable', requested: null, last_result: null, helper_seen_at: helperSeenAt }
-  const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) =>
-    Promise.resolve(
-      init?.method === 'POST' ? json({ ...state, requested: 'dev' }) : json(state, 200),
-    ),
-  )
+function serve(helperSeenAt: string | null, lastResult: unknown = null) {
+  const state = {
+    current: 'stable',
+    requested: null,
+    last_result: lastResult,
+    helper_seen_at: helperSeenAt,
+  }
+  const fetchMock = vi.fn((input: string, init?: RequestInit) => {
+    if (init?.method !== 'POST') return Promise.resolve(json(state, 200))
+    const update = input.endsWith('/update')
+    return Promise.resolve(json({ ...state, requested: update ? 'stable' : 'dev' }))
+  })
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock
 }
@@ -54,11 +59,42 @@ describe('BuildChannelCard', () => {
     expect(await screen.findByText(/Switching to the dev build/)).toBeInTheDocument()
   })
 
-  it('reports a missing helper instead of offering a switch that would wait for ever', async () => {
+  it('updates the running build in one click and says what it found', async () => {
+    const fetchMock = serve(new Date().toISOString())
+    renderWithProviders(<BuildChannelCard />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Update' }))
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/system/channel/update',
+        expect.objectContaining({ method: 'POST' }),
+      ),
+    )
+    expect(await screen.findByText(/Looking for a newer stable build/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Switch to the dev build' })).toBeDisabled()
+  })
+
+  it('shows a recent result, and not one from long ago', async () => {
+    const message = 'Sentinel already runs the newest stable build.'
+    serve(new Date().toISOString(), { state: 'done', message, finished_at: new Date().toISOString() })
+    const { unmount } = renderWithProviders(<BuildChannelCard />)
+    expect(await screen.findByText(message)).toBeInTheDocument()
+    unmount()
+
+    serve(new Date().toISOString(), { state: 'done', message, finished_at: '2026-01-01T00:00:00Z' })
+    renderWithProviders(<BuildChannelCard />)
+    await screen.findByRole('button', { name: 'Update' })
+    expect(screen.queryByText(message)).not.toBeInTheDocument()
+  })
+
+  it('reports a missing helper instead of offering buttons that would wait for ever', async () => {
     serve(null)
     renderWithProviders(<BuildChannelCard />)
 
-    expect(await screen.findByText(/helper that applies a switch is not running/)).toBeInTheDocument()
+    expect(
+      await screen.findByText(/helper that applies an update or switch is not running/),
+    ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Switch to the dev build' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Update' })).toBeDisabled()
   })
 })

@@ -1601,19 +1601,21 @@ PROVISION
 	} >"$path"
 }
 
-# Writes the host half of the administration's build switch into $1: the
-# helper and the systemd service and timer that run it every 30 seconds.
+# Writes the host half of the administration's build switch and update button
+# into $1: the helper and the systemd service and timer that run it every 30
+# seconds.
 #
 # Sentinel never gets the Docker socket, which would be root on this host. It
 # only writes update-request.json into its data volume; the helper, running as
-# root here, moves the Sentinel image in compose.yml between :latest and :dev,
-# backs up the database first, recreates the container and restores the old
-# compose file if the new build does not come up healthy.
+# root here, moves the Sentinel image in compose.yml between :latest and :dev
+# (or, for the running build, keeps it), backs up the database first, pulls,
+# recreates the container and restores the old compose file if the new build
+# does not come up healthy.
 write_channel_helper() {
 	local dir="$1"
 	cat >"$dir/sentinel-channel" <<'HELPER'
 #!/bin/sh
-# Applies a build switch asked for in the Sentinel administration.
+# Applies a build switch or update asked for in the Sentinel administration.
 # Installed by install-proxmox.sh; runs from sentinel-channel.timer.
 set -u
 
@@ -1675,16 +1677,21 @@ if [ ! -f "$compose" ]; then
 	exit 0
 fi
 
-stamp="$(date -u +%Y%m%dT%H%M%SZ)"
-backup="$compose.before-$channel-$stamp"
+backup="$compose.before-$channel"
 cp -p "$compose" "$backup"
 if ! retag "$compose" "$channel"; then
+	rm -f "$backup"
 	report failed "compose.yml does not use the published Sentinel image; switch it by hand."
 	exit 0
 fi
+# Asking for the build that already runs means "update it".
+kind="$channel"
+cmp -s "$backup" "$compose" && kind=update
+before="$(docker inspect -f '{{.Image}}' "$CONTAINER")"
 
-if ! docker exec "$CONTAINER" python -c "import sqlite3; s = sqlite3.connect('/data/database/sentinel.db'); d = sqlite3.connect('/data/database/sentinel-before-$channel-$stamp.db'); s.backup(d); d.close()"; then
-	cp -p "$backup" "$compose"
+# One copy per kind, overwritten each time, so updates do not pile up copies.
+if ! docker exec "$CONTAINER" python -c "import sqlite3; s = sqlite3.connect('/data/database/sentinel.db'); d = sqlite3.connect('/data/database/sentinel-before-$kind.db'); s.backup(d); d.close()"; then
+	mv "$backup" "$compose"
 	report failed "Could not back up the database, so nothing was changed."
 	exit 0
 fi
@@ -1701,16 +1708,24 @@ healthy() {
 }
 
 if (cd "$dir" && docker compose "$@" pull && docker compose "$@" up -d) && healthy; then
-	report done "Sentinel now runs the $channel build."
+	rm -f "$backup"
+	if [ "$kind" != update ]; then
+		report done "Sentinel now runs the $channel build."
+	elif [ "$(docker inspect -f '{{.Image}}' "$CONTAINER")" = "$before" ]; then
+		report done "Sentinel already runs the newest $channel build."
+	else
+		report done "Sentinel was updated to the newest $channel build."
+	fi
 else
 	cp -p "$backup" "$compose"
 	(cd "$dir" && docker compose "$@" up -d) || true
+	rm -f "$backup"
 	report failed "The $channel build did not start healthily, so the previous build was restored."
 fi
 HELPER
 	cat >"$dir/sentinel-channel.service" <<'UNIT'
 [Unit]
-Description=Apply a Sentinel build switch asked for in the administration
+Description=Apply a Sentinel build switch or update asked for in the administration
 After=docker.service
 Requires=docker.service
 
@@ -1720,7 +1735,7 @@ ExecStart=/usr/local/sbin/sentinel-channel
 UNIT
 	cat >"$dir/sentinel-channel.timer" <<'UNIT'
 [Unit]
-Description=Look for a Sentinel build switch every 30 seconds
+Description=Look for a Sentinel build switch or update every 30 seconds
 
 [Timer]
 OnBootSec=1min

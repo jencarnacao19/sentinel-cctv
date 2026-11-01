@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { GitBranch } from 'lucide-react'
+import { GitBranch, RefreshCw } from 'lucide-react'
 import { useState } from 'react'
 
 import { channelApi, queryKeys } from '@/api/endpoints'
@@ -27,8 +27,13 @@ function helperRunning(seenAt: string | null, now = Date.now()): boolean {
   return seenAt !== null && now - Date.parse(seenAt) < 2 * 60_000
 }
 
+/** A finished update or switch is worth showing for a while, not for ever. */
+function recent(finishedAt: string | undefined, now = Date.now()): boolean {
+  return finishedAt !== undefined && now - Date.parse(finishedAt) < 10 * 60_000
+}
+
 /**
- * Moves this server between the stable and the dev build.
+ * Updates this server, or moves it between the stable and the dev build.
  *
  * The switch restarts Sentinel on a build that may not be a release, so it asks
  * for the build's name typed in capitals, and the server refuses it otherwise.
@@ -58,6 +63,12 @@ export function BuildChannelCard() {
     },
   })
 
+  const update = useMutation({
+    mutationFn: channelApi.update,
+    onSuccess: (next) => queryClient.setQueryData(queryKeys.buildChannel, next),
+  })
+
+  const requested = state.data?.requested
   const last = state.data?.last_result
   return (
     <Card>
@@ -69,30 +80,50 @@ export function BuildChannelCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        {state.data?.requested ? (
+        {requested === current ? (
           <Alert variant="info">
-            Switching to the {NAMES[state.data.requested]} build. Sentinel restarts within a
-            minute; this page carries on by itself.
+            Looking for a newer {NAMES[current]} build. If there is one, Sentinel restarts within
+            a minute; this page carries on by itself.
+          </Alert>
+        ) : requested ? (
+          <Alert variant="info">
+            Switching to the {NAMES[requested]} build. Sentinel restarts within a minute; this
+            page carries on by itself.
           </Alert>
         ) : last?.state === 'failed' ? (
-          <Alert variant="danger" title="The last switch did not happen">
+          <Alert variant="danger" title="The last update or switch did not happen">
             {last.message}
           </Alert>
+        ) : last?.state === 'done' && recent(last.finished_at) ? (
+          <Alert variant="success">{last.message}</Alert>
+        ) : null}
+        {errorText(update.error, 'Could not ask for the update.') ? (
+          <Alert variant="danger">{errorText(update.error, 'Could not ask for the update.')}</Alert>
         ) : null}
         {state.data && !ready ? (
           <Alert variant="warning">
-            The helper that applies a switch is not running on this server. Run the installer
-            again to add it.
+            The helper that applies an update or switch is not running on this server. Run the
+            installer again to add it.
           </Alert>
         ) : null}
-        <Button
-          variant="secondary"
-          disabled={!ready || Boolean(state.data?.requested)}
-          onClick={() => setOpen(true)}
-        >
-          <GitBranch aria-hidden="true" />
-          Switch to the {NAMES[target]} build
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            disabled={!ready || Boolean(requested)}
+            loading={update.isPending}
+            onClick={() => update.mutate()}
+          >
+            <RefreshCw aria-hidden="true" />
+            Update
+          </Button>
+          <Button
+            variant="secondary"
+            disabled={!ready || Boolean(requested)}
+            onClick={() => setOpen(true)}
+          >
+            <GitBranch aria-hidden="true" />
+            Switch to the {NAMES[target]} build
+          </Button>
+        </div>
       </CardContent>
 
       <Dialog

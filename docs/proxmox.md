@@ -187,17 +187,23 @@ changed there by hand survives.
 Your database, configuration and recordings are untouched by an update. The
 schema is migrated in place on the next start — never recreated.
 
-### Switching to the dev build
+### Updating and switching to the dev build from the administration
 
-**Settings → Build** in the administration moves the server between the stable
-build (`:latest`) and the dev build (`:dev`), after you type the build's name in
-capitals. Sentinel itself never touches Docker: it leaves the request in its
-data volume, and `sentinel-channel.timer` inside the container picks it up
-within 30 seconds. The helper then:
+**Settings → Build** in the administration has two buttons:
 
-1. backs up the database next to it (`sentinel-before-<build>-<time>.db`) and
-   `compose.yml` (`compose.yml.before-<build>-<time>`);
-2. changes only the Sentinel image tag in `compose.yml`, pulls it and restarts;
+- **Update** installs the newest image of the build the server runs, and
+  restarts Sentinel only if there is one;
+- **Switch** moves the server between the stable build (`:latest`) and the dev
+  build (`:dev`), after you type the build's name in capitals.
+
+Sentinel itself never touches Docker: it leaves the request in its data volume,
+and `sentinel-channel.timer` inside the container picks it up within 30 seconds.
+The helper then:
+
+1. backs up the database next to it (`sentinel-before-update.db`, or
+   `sentinel-before-<build>.db` for a switch; each one replaces the last);
+2. changes only the Sentinel image tag in `compose.yml` (for a switch), pulls
+   the image and restarts if it changed;
 3. puts the previous `compose.yml` back if the new build is not healthy within
    three minutes.
 

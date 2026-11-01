@@ -1,4 +1,4 @@
-"""Moving the server between the stable and the dev build.
+"""Moving the server between the stable and the dev build, and updating it.
 
 Sentinel never controls Docker itself: that would need the Docker socket, which
 is root on the host. The administrator's choice is written as a request file
@@ -91,13 +91,30 @@ async def request_channel(payload: ChannelRequest, _: AdminPrincipal) -> Channel
             status_code=status.HTTP_409_CONFLICT,
             detail=f"This server already runs the {payload.channel} build.",
         )
-    target = settings.data_dir / REQUEST_FILE
+    _write_request(payload.channel)
+    return _state()
+
+
+@router.post(
+    "/update",
+    response_model=ChannelState,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Ask the host helper to install the newest image of this build",
+)
+async def request_update(_: AdminPrincipal) -> ChannelState:
+    # The helper treats a request for the running build as an update: it pulls
+    # and restarts only when the published image changed.
+    _write_request(get_settings().build_channel)
+    return _state()
+
+
+def _write_request(channel: Channel) -> None:
+    target = get_settings().data_dir / REQUEST_FILE
     partial = target.with_suffix(".tmp")
     partial.write_text(
-        json.dumps({"channel": payload.channel, "requested_at": datetime.now(UTC).isoformat()}),
+        json.dumps({"channel": channel, "requested_at": datetime.now(UTC).isoformat()}),
         encoding="utf-8",
     )
     # The helper runs as root on the host but only needs to read it.
     partial.chmod(0o644)
     os.replace(partial, target)
-    return _state()
