@@ -205,6 +205,24 @@ def _index(path: Path) -> FragmentIndex:
     return FragmentIndex(init_length=init_length, chunks=tuple(chunks))
 
 
+def apple_init(header: bytes) -> bytes:
+    """The init header with HEVC labelled the way Apple's players accept.
+
+    ffmpeg copies a camera's H.265 into a ``hev1`` sample entry; Safari and iOS
+    play HEVC only from ``hvc1``. The two differ only in whether parameter sets
+    may also travel in-band, which every player here handles either way.
+    """
+    patched = bytearray(header)
+    at = patched.find(b"stsd")
+    while at != -1:
+        # 'stsd', version and flags, entry count, then the first entry's size.
+        entry = at + 4 + 4 + 4 + 4
+        if patched[entry : entry + 4] == b"hev1":
+            patched[entry : entry + 4] = b"hvc1"
+        at = patched.find(b"stsd", at + 4)
+    return bytes(patched)
+
+
 @lru_cache(maxsize=4096)
 def _cached(path: str, size: int, mtime_ns: int) -> FragmentIndex:
     del size, mtime_ns  # cache key only: a rewritten file gets a fresh index

@@ -170,14 +170,17 @@ export class PlaybackPlayer {
   }
 
   private playNative(token: number, url: string, startPosition: number): void {
-    const start = () => {
-      if (token !== this.token || this.stopped) return
-      this.video.currentTime = startPosition
-      this.play(token)
-    }
-    this.video.addEventListener('loadedmetadata', start, { once: true })
+    this.video.addEventListener(
+      'loadedmetadata',
+      () => {
+        if (token === this.token && !this.stopped) this.video.currentTime = startPosition
+      },
+      { once: true },
+    )
+    this.video.preload = 'auto'
     this.video.src = url
-    this.applyRate()
+    // iOS loads nothing until play() is called: ask now, not once the metadata is in.
+    this.play(token)
   }
 
   private async playWithHlsJs(token: number, url: string, startPosition: number): Promise<void> {
@@ -223,8 +226,16 @@ export class PlaybackPlayer {
       () => {
         if (token === this.token) this.setState('playing')
       },
-      () => {
-        if (token === this.token) this.setState('stalled', 'Playback needs a tap to start.')
+      (error: unknown) => {
+        if (token !== this.token) return
+        if (error instanceof DOMException && error.name === 'NotAllowedError' && !this.video.muted) {
+          // Phones only start playback by themselves without sound; the
+          // speaker button turns it back on.
+          this.video.muted = true
+          this.play(token)
+          return
+        }
+        this.setState('stalled', 'Playback needs a tap to start.')
       },
     )
   }

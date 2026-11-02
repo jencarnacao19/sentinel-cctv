@@ -194,8 +194,8 @@ def _index_all(files: list[Path]) -> list[FragmentIndex | None]:
     return indexes
 
 
-def _render(entries: list[tuple[PlaylistItem, int, list[tuple[int, int, float]]]]) -> str:
-    longest = max(seconds for _, _, chunks in entries for _, _, seconds in chunks)
+def _render(entries: list[tuple[PlaylistItem, list[tuple[int, int, float]]]]) -> str:
+    longest = max(seconds for _, chunks in entries for _, _, seconds in chunks)
     lines = [
         "#EXTM3U",
         "#EXT-X-VERSION:7",
@@ -203,14 +203,15 @@ def _render(entries: list[tuple[PlaylistItem, int, list[tuple[int, int, float]]]
         "#EXT-X-PLAYLIST-TYPE:VOD",
         "#EXT-X-INDEPENDENT-SEGMENTS",
     ]
-    for number, (item, init_length, chunks) in enumerate(entries):
+    for number, (item, chunks) in enumerate(entries):
         uri = f"{item.segment_id}.mp4"
         # Every file restarts its own timestamps and carries its own header.
         if number:
             lines.append("#EXT-X-DISCONTINUITY")
         stamp = item.started_at.astimezone(UTC).isoformat(timespec="milliseconds")
         lines.append(f"#EXT-X-PROGRAM-DATE-TIME:{stamp.replace('+00:00', 'Z')}")
-        lines.append(f'#EXT-X-MAP:URI="{uri}",BYTERANGE="{init_length}@0"')
+        # The header has its own URL: Apple needs it rewritten (see apple_init).
+        lines.append(f'#EXT-X-MAP:URI="{item.segment_id}.init.mp4"')
         for offset, length, seconds in chunks:
             lines += [f"#EXTINF:{seconds:.3f},", f"#EXT-X-BYTERANGE:{length}@{offset}", uri]
     lines.append("#EXT-X-ENDLIST")
@@ -255,7 +256,7 @@ async def build_playlist(
     parts = [part for part in parts if part.segment_id in files]
     indexes = await asyncio.to_thread(_index_all, [files[part.segment_id] for part in parts])
 
-    entries: list[tuple[PlaylistItem, int, list[tuple[int, int, float]]]] = []
+    entries: list[tuple[PlaylistItem, list[tuple[int, int, float]]]] = []
     position = 0.0
     for part, index in zip(parts, indexes, strict=True):
         if index is None:
@@ -277,14 +278,14 @@ async def build_playlist(
             continue
         duration = sum(seconds for _, _, seconds in chunks)
         item = PlaylistItem(part.segment_id, first, position, duration)
-        entries.append((item, index.init_length, chunks))
+        entries.append((item, chunks))
         position += duration
 
     if not entries:
         target = await timeline.resolve_playback(session, camera_id, at, now=moment)
         return PlaybackPlaylist("", {}, [], 0.0, None, target.next_started_at)
 
-    items = [item for item, _, _ in entries]
+    items = [item for item, _ in entries]
     last = items[-1]
     return PlaybackPlaylist(
         text=_render(entries),

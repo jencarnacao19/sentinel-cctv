@@ -8,7 +8,7 @@ from pathlib import Path
 from httpx import AsyncClient
 
 from app.config import Settings
-from app.recording.fragments import CHUNK_TARGET_SECONDS, index_fragments
+from app.recording.fragments import CHUNK_TARGET_SECONDS, apple_init, index_fragments
 from tests import test_export
 from tests.test_export import requires_ffmpeg
 
@@ -18,6 +18,15 @@ _pipeline = test_export.TestRealExportPipeline
 
 def _files(root: Path) -> list[Path]:
     return sorted(root.rglob("*.mp4"))
+
+
+def test_apple_gets_hevc_as_hvc1_and_everything_else_untouched() -> None:
+    def stsd(entry: bytes) -> bytes:
+        return b"\x00\x00\x00\x20stsd" + bytes(8) + b"\x00\x00\x00\x10" + entry + bytes(8)
+
+    header = b"ftyp" + stsd(b"hev1") + stsd(b"mp4a")
+    assert apple_init(header) == b"ftyp" + stsd(b"hvc1") + stsd(b"mp4a")
+    assert apple_init(stsd(b"avc1")) == stsd(b"avc1")
 
 
 @requires_ffmpeg
@@ -92,6 +101,17 @@ class TestRecordedPlayback:
         assert chunk.status_code == 206
         assert len(chunk.content) == length
         assert chunk.content[4:8] == b"moof"
+
+        # Each file's header comes on its own, ready to decode the chunks after it.
+        header_uri = next(
+            line.split('URI="', 1)[1].rstrip('"')
+            for line in lines
+            if line.startswith("#EXT-X-MAP:")
+        )
+        header = await admin_client.get(f"{base}/{header_uri}")
+        assert header.status_code == 200
+        assert header.content[4:8] == b"ftyp" and b"moov" in header.content
+        assert b"moof" not in header.content
 
         # The grant serves only its own camera and the files its playlist names.
         token = body["url"].split("/")[-2]

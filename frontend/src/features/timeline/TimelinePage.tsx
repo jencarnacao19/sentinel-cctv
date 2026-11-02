@@ -32,6 +32,8 @@ import {
   SkipForward,
   Trash2,
   Video,
+  Volume2,
+  VolumeX,
   X,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -256,6 +258,7 @@ function CameraTimeline({
   const [playbackState, setPlaybackState] = useState<PlaybackState | null>(null)
   const [playbackDetail, setPlaybackDetail] = useState<string | null>(null)
   const [playbackRate, setPlaybackRate] = useState<PlaybackSpeed>(1)
+  const [muted, setMuted] = useState(false)
   const stageRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const playerRef = useRef<PlaybackPlayer | null>(null)
@@ -427,6 +430,7 @@ function CameraTimeline({
                 event.currentTarget.defaultPlaybackRate = playbackRate
                 event.currentTarget.playbackRate = playbackRate
               }}
+              onVolumeChange={(event) => setMuted(event.currentTarget.muted)}
               onPlay={() => setPlaybackState('playing')}
               onPause={() => setPlaybackState('paused')}
             />
@@ -540,6 +544,19 @@ function CameraTimeline({
                 onChange={changePlaybackRate}
                 disabled={playheadAt === null}
               />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-11 text-(--color-media-fg) hover:bg-white/10 sm:size-10"
+                onClick={() => {
+                  if (videoRef.current) videoRef.current.muted = !videoRef.current.muted
+                }}
+                disabled={playheadAt === null}
+                aria-label={muted ? 'Turn sound on' : 'Mute'}
+                aria-pressed={muted}
+              >
+                {muted ? <VolumeX aria-hidden /> : <Volume2 aria-hidden />}
+              </Button>
               <Button
                 variant="ghost"
                 size="icon"

@@ -70,6 +70,7 @@ describe('PlaybackPlayer', () => {
 
   beforeEach(() => {
     mockedSession.mockReset()
+    play.mockClear()
     video = fakeVideo()
     states = []
     player = new PlaybackPlayer(video, 'cam', { onStateChange: (state) => states.push(state) })
@@ -88,6 +89,19 @@ describe('PlaybackPlayer', () => {
     expect(video.currentTime).toBe(2.5)
     expect(play).toHaveBeenCalled()
     expect(states).toContain('playing')
+  })
+
+  it('starts muted when the phone refuses to start it with sound', async () => {
+    play
+      .mockImplementationOnce(() => Promise.reject(new DOMException('no gesture', 'NotAllowedError')))
+      .mockImplementationOnce(() => Promise.resolve())
+    mockedSession.mockResolvedValue(session())
+    video.muted = false
+    await player.seek(new Date(START))
+    await flush()
+    expect(video.muted).toBe(true)
+    expect(play).toHaveBeenCalledTimes(2)
+    expect(states.at(-1)).toBe('playing')
   })
 
   it('skips an hour with no footage to the next recording', async () => {

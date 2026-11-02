@@ -36,6 +36,7 @@ from app.config import Settings, get_settings
 from app.database.models import Camera
 from app.database.session import get_session, get_session_factory
 from app.logging_config import get_logger
+from app.recording.fragments import apple_init, index_fragments
 from app.recording.playback import PlaybackPlaylist
 from app.security.origin import websocket_origin_allowed
 from app.streaming.client import Go2RtcUnavailableError
@@ -529,6 +530,25 @@ async def recording_playlist(camera_id: str, token: str) -> Response:
         content=playlist.text,
         media_type="application/vnd.apple.mpegurl",
         headers={"Cache-Control": "private, no-store"},
+    )
+
+
+@router.get("/{camera_id}/recordings/{token}/{segment_id}.init.mp4", include_in_schema=False)
+async def recording_header(camera_id: str, token: str, segment_id: str) -> Response:
+    path = _recording_playlist(camera_id, token).files.get(segment_id)
+    if path is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recording not found.")
+    try:
+        with path.open("rb") as handle:
+            header = handle.read(index_fragments(path).init_length)
+    except OSError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE, detail="Recording was removed."
+        ) from exc
+    return Response(
+        content=apple_init(header),
+        media_type="video/mp4",
+        headers={"Cache-Control": "private, max-age=3600"},
     )
 
 
