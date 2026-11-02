@@ -523,8 +523,23 @@ def _recording_playlist(camera_id: str, token: str) -> PlaybackPlaylist:
     return grant.payload
 
 
+def _log_playback_request(request: Request, camera_id: str, kind: str) -> None:
+    # shortcut: temporary, to see what an iPhone asks for while its playback
+    # stays black; remove once it plays.
+    logger.info(
+        "Recording playback request",
+        extra={
+            "camera_id": camera_id,
+            "kind": kind,
+            "range": request.headers.get("range"),
+            "agent": request.headers.get("user-agent", "")[:80],
+        },
+    )
+
+
 @router.get("/{camera_id}/recordings/{token}/index.m3u8", include_in_schema=False)
-async def recording_playlist(camera_id: str, token: str) -> Response:
+async def recording_playlist(camera_id: str, token: str, request: Request) -> Response:
+    _log_playback_request(request, camera_id, "playlist")
     playlist = _recording_playlist(camera_id, token)
     return Response(
         content=playlist.text,
@@ -534,7 +549,10 @@ async def recording_playlist(camera_id: str, token: str) -> Response:
 
 
 @router.get("/{camera_id}/recordings/{token}/{segment_id}.init.mp4", include_in_schema=False)
-async def recording_header(camera_id: str, token: str, segment_id: str) -> Response:
+async def recording_header(
+    camera_id: str, token: str, segment_id: str, request: Request
+) -> Response:
+    _log_playback_request(request, camera_id, "header")
     path = _recording_playlist(camera_id, token).files.get(segment_id)
     if path is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recording not found.")
@@ -553,7 +571,10 @@ async def recording_header(camera_id: str, token: str, segment_id: str) -> Respo
 
 
 @router.get("/{camera_id}/recordings/{token}/{segment_id}.mp4", include_in_schema=False)
-async def recording_file(camera_id: str, token: str, segment_id: str) -> FileResponse:
+async def recording_file(
+    camera_id: str, token: str, segment_id: str, request: Request
+) -> FileResponse:
+    _log_playback_request(request, camera_id, "chunk")
     # Only a file this grant's playlist names; the playlist resolved and
     # confined every path when it was built.
     path = _recording_playlist(camera_id, token).files.get(segment_id)

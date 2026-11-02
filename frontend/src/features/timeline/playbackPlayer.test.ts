@@ -104,6 +104,14 @@ describe('PlaybackPlayer', () => {
     expect(states.at(-1)).toBe('playing')
   })
 
+  it('says why the native player gave up', async () => {
+    mockedSession.mockResolvedValue(session())
+    await player.seek(new Date(START))
+    Object.defineProperty(video, 'error', { value: { code: 4, message: 'unsupported' } })
+    video.dispatchEvent(new Event('error'))
+    expect(states.at(-1)).toBe('error')
+  })
+
   it('skips an hour with no footage to the next recording', async () => {
     mockedSession
       .mockResolvedValueOnce(session({ url: null, items: [], next_at: '2026-11-01T14:00:00Z' }))

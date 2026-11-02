@@ -84,6 +84,7 @@ export class PlaybackPlayer {
     video.addEventListener('playing', this.handlePlaying)
     video.addEventListener('pause', this.handlePause)
     video.addEventListener('waiting', this.handleWaiting)
+    video.addEventListener('error', this.handleMediaError)
   }
 
   get playbackRate(): PlaybackSpeed {
@@ -158,6 +159,7 @@ export class PlaybackPlayer {
     this.video.removeEventListener('playing', this.handlePlaying)
     this.video.removeEventListener('pause', this.handlePause)
     this.video.removeEventListener('waiting', this.handleWaiting)
+    this.video.removeEventListener('error', this.handleMediaError)
     this.detach()
   }
 
@@ -265,5 +267,13 @@ export class PlaybackPlayer {
 
   private handleWaiting = (): void => {
     if (this.session) this.setState('loading')
+  }
+
+  /** The native player's failure, with the code the device gives; hls.js reports its own. */
+  private handleMediaError = (): void => {
+    const error = this.video.error
+    if (this.hls || !this.session || !error) return
+    const reason = error.message ? `${error.code}: ${error.message}` : `code ${error.code}`
+    this.setState('error', `This device could not play the recording (${reason}).`)
   }
 }
