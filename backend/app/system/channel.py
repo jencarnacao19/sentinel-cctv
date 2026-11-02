@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
 
@@ -24,12 +24,18 @@ from app.config import get_settings
 REQUEST_FILE = "update-request.json"
 STATUS_FILE = "update-status.json"
 HELPER_FILE = "update-helper.json"
+#: A copy of the last request that the helper never deletes: it removes the
+#: request when it starts, long before a pull and restart are over.
+LAST_REQUEST_FILE = "update-last-request.json"
+#: A switch or update that has not reported by then is not coming back.
+GIVE_UP_AFTER = timedelta(minutes=15)
 
 Channel = Literal["stable", "dev"]
 
 
 class ChannelState(BaseModel):
     current: Channel
+    #: The build of a switch or update that is waiting or still being applied.
     requested: Channel | None
     #: The helper's report of its last switch: channel, state, message, finished_at.
     last_result: dict[str, Any] | None
@@ -54,9 +60,30 @@ def _read(path: Path) -> dict[str, Any] | None:
     return value if isinstance(value, dict) else None
 
 
+def _instant(value: object) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        moment = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return moment if moment.tzinfo else moment.replace(tzinfo=UTC)
+
+
+def _unfinished(data_dir: Path) -> dict[str, Any] | None:
+    """The last request, while the helper has not reported on it yet."""
+    last = _read(data_dir / LAST_REQUEST_FILE)
+    asked = _instant(last.get("requested_at")) if last else None
+    if asked is None or datetime.now(UTC) - asked > GIVE_UP_AFTER:
+        return None
+    status = _read(data_dir / STATUS_FILE)
+    finished = _instant(status.get("finished_at")) if status else None
+    return None if finished is not None and finished >= asked else last
+
+
 def _state() -> ChannelState:
     settings = get_settings()
-    request = _read(settings.data_dir / REQUEST_FILE)
+    request = _read(settings.data_dir / REQUEST_FILE) or _unfinished(settings.data_dir)
     helper = _read(settings.data_dir / HELPER_FILE)
     requested = request.get("channel") if request else None
     seen_at = helper.get("seen_at") if helper else None
@@ -109,12 +136,11 @@ async def request_update(_: AdminPrincipal) -> ChannelState:
 
 
 def _write_request(channel: Channel) -> None:
-    target = get_settings().data_dir / REQUEST_FILE
-    partial = target.with_suffix(".tmp")
-    partial.write_text(
-        json.dumps({"channel": channel, "requested_at": datetime.now(UTC).isoformat()}),
-        encoding="utf-8",
-    )
-    # The helper runs as root on the host but only needs to read it.
-    partial.chmod(0o644)
-    os.replace(partial, target)
+    body = json.dumps({"channel": channel, "requested_at": datetime.now(UTC).isoformat()})
+    for name in (LAST_REQUEST_FILE, REQUEST_FILE):
+        target = get_settings().data_dir / name
+        partial = target.with_suffix(".tmp")
+        partial.write_text(body, encoding="utf-8")
+        # The helper runs as root on the host but only needs to read it.
+        partial.chmod(0o644)
+        os.replace(partial, target)

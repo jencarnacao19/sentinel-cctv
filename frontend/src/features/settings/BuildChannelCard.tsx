@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { GitBranch, RefreshCw } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { channelApi, queryKeys } from '@/api/endpoints'
 import { Alert } from '@/components/ui/alert'
@@ -49,6 +49,17 @@ export function BuildChannelCard() {
   const [open, setOpen] = useState(false)
   const [typed, setTyped] = useState('')
 
+  // Once a switch or update this page watched has finished, the server runs a
+  // new build: load its interface too, which also shows the helper's result.
+  const wasPending = useRef(false)
+  useEffect(() => {
+    if (!state.data) return
+    if (wasPending.current && !state.data.requested && state.data.last_result?.state === 'done') {
+      window.location.reload()
+    }
+    wasPending.current = Boolean(state.data.requested)
+  }, [state.data])
+
   const current = state.data?.current ?? 'stable'
   const target: BuildChannel = current === 'dev' ? 'stable' : 'dev'
   const word = target.toUpperCase()
@@ -82,13 +93,14 @@ export function BuildChannelCard() {
       <CardContent className="space-y-3">
         {requested === current ? (
           <Alert variant="info">
-            Looking for a newer {NAMES[current]} build. If there is one, Sentinel restarts within
-            a minute; this page carries on by itself.
+            Updating the {NAMES[current]} build: downloading takes a minute or two, then
+            Sentinel restarts if there was a newer one. This page reloads by itself when it is
+            done.
           </Alert>
         ) : requested ? (
           <Alert variant="info">
-            Switching to the {NAMES[requested]} build. Sentinel restarts within a minute; this
-            page carries on by itself.
+            Switching to the {NAMES[requested]} build: downloading takes a minute or two, then
+            Sentinel restarts. This page reloads by itself when it is done.
           </Alert>
         ) : last?.state === 'failed' ? (
           <Alert variant="danger" title="The last update or switch did not happen">

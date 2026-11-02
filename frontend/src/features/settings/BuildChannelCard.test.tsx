@@ -70,8 +70,35 @@ describe('BuildChannelCard', () => {
         expect.objectContaining({ method: 'POST' }),
       ),
     )
-    expect(await screen.findByText(/Looking for a newer stable build/)).toBeInTheDocument()
+    expect(await screen.findByText(/Updating the stable build/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Switch to the dev build' })).toBeDisabled()
+  })
+
+  it('reloads the page once the update it watched has finished', async () => {
+    const reload = vi.fn()
+    vi.stubGlobal('location', { ...window.location, reload })
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const pending = { current: 'stable', requested: 'stable', last_result: null }
+      const done = {
+        current: 'stable',
+        requested: null,
+        last_result: { state: 'done', message: 'Sentinel was updated to the newest stable build.' },
+      }
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(json({ ...pending, helper_seen_at: new Date().toISOString() }, 200))
+        .mockResolvedValue(json({ ...done, helper_seen_at: new Date().toISOString() }, 200))
+      vi.stubGlobal('fetch', fetchMock)
+      renderWithProviders(<BuildChannelCard />)
+
+      expect(await screen.findByText(/Updating the stable build/)).toBeInTheDocument()
+      expect(reload).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(5_000)
+      await waitFor(() => expect(reload).toHaveBeenCalledOnce())
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('shows a recent result, and not one from long ago', async () => {

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import stat
+from datetime import UTC, datetime, timedelta
 
 from httpx import AsyncClient
 
@@ -55,6 +56,34 @@ async def test_an_update_asks_the_helper_for_the_running_build(
     assert response.json()["requested"] == "stable"
     request = settings.data_dir / "update-request.json"
     assert json.loads(request.read_text())["channel"] == "stable"
+
+
+async def test_a_request_stays_pending_until_the_helper_reports_on_it(
+    admin_client: AsyncClient, settings: Settings
+) -> None:
+    await admin_client.post(f"{CHANNEL}/update")
+    # The helper deletes the request as soon as it starts pulling.
+    (settings.data_dir / "update-request.json").unlink()
+    (settings.data_dir / "update-status.json").write_text(
+        '{"state": "done", "finished_at": "2026-01-01T00:00:00Z"}'
+    )
+    assert (await admin_client.get(CHANNEL)).json()["requested"] == "stable"
+
+    finished = datetime.now(UTC) + timedelta(seconds=1)
+    (settings.data_dir / "update-status.json").write_text(
+        json.dumps({"state": "done", "finished_at": finished.strftime("%Y-%m-%dT%H:%M:%SZ")})
+    )
+    assert (await admin_client.get(CHANNEL)).json()["requested"] is None
+
+
+async def test_a_helper_that_never_reports_is_not_waited_on_for_ever(
+    admin_client: AsyncClient, settings: Settings
+) -> None:
+    long_ago = (datetime.now(UTC) - timedelta(hours=1)).isoformat()
+    (settings.data_dir / "update-last-request.json").write_text(
+        json.dumps({"channel": "dev", "requested_at": long_ago})
+    )
+    assert (await admin_client.get(CHANNEL)).json()["requested"] is None
 
 
 async def test_the_helper_reports_are_shown(admin_client: AsyncClient, settings: Settings) -> None:
