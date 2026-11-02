@@ -17,7 +17,7 @@ import { FormDisclosure, FormField, FormSection } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
-import { useUpdateCamera } from '@/features/cameras/useCameras'
+import { useCameraCredentials, useUpdateCamera } from '@/features/cameras/useCameras'
 import type {
   Camera,
   CameraUpdate,
@@ -66,6 +66,9 @@ function choiceFor(value: boolean | null): TapoControlChoice {
 export function EditCameraDialog({ camera, open, onOpenChange }: Props) {
   const update = useUpdateCamera()
   const resetUpdate = update.reset
+  const credentials = useCameraCredentials(camera.id, open)
+  const storedPassword = credentials.data?.password ?? ''
+  const storedTapoPassword = credentials.data?.tapo_password ?? ''
   const [name, setName] = useState(camera.name)
   const [mainUrl, setMainUrl] = useState(camera.main_stream_url ?? '')
   const [subUrl, setSubUrl] = useState(camera.sub_stream_url ?? '')
@@ -121,7 +124,7 @@ export function EditCameraDialog({ camera, open, onOpenChange }: Props) {
     setSubUrl(camera.sub_stream_url ?? '')
     setUsername(camera.username ?? '')
     setOnvifXaddr(camera.onvif_device_xaddr ?? '')
-    setPassword('')
+    setPassword(storedPassword)
     setClearPassword(false)
     setEnabled(camera.enabled)
     setRecordingMode(camera.recording_mode)
@@ -134,11 +137,11 @@ export function EditCameraDialog({ camera, open, onOpenChange }: Props) {
     setMotionEnabled(camera.motion_enabled)
     setMotionSensitivity(camera.motion_sensitivity)
     setTapoPatrolMode(camera.tapo_patrol_mode ?? '')
-    setTapoPassword('')
+    setTapoPassword(storedTapoPassword)
     setClearTapoPassword(false)
     setTapoControls(choiceFor(camera.tapo_controls_enabled))
     resetUpdate()
-  }, [camera, open, resetUpdate])
+  }, [camera, open, resetUpdate, storedPassword, storedTapoPassword])
 
   async function save(event: React.FormEvent) {
     event.preventDefault()
@@ -164,11 +167,11 @@ export function EditCameraDialog({ camera, open, onOpenChange }: Props) {
       if (tapoSettingsActive) {
         payload.tapo_patrol_mode = tapoPatrolMode || null
         if (clearTapoPassword) payload.tapo_password = ''
-        else if (tapoPassword) payload.tapo_password = tapoPassword
+        else if (tapoPassword !== storedTapoPassword) payload.tapo_password = tapoPassword
       }
     }
     if (clearPassword) payload.password = ''
-    else if (password) payload.password = password
+    else if (password !== storedPassword) payload.password = password
     if (onvifXaddr.trim() !== (camera.onvif_device_xaddr ?? '')) {
       payload.onvif_device_xaddr = onvifXaddr.trim() || null
     }
@@ -183,7 +186,7 @@ export function EditCameraDialog({ camera, open, onOpenChange }: Props) {
         <DialogHeader>
           <DialogTitle>Configure {camera.name}</DialogTitle>
           <DialogDescription>
-            Streams, recording, retention and motion. Stored passwords are never shown.
+            Streams, recording, retention and motion.
           </DialogDescription>
         </DialogHeader>
 
@@ -259,17 +262,14 @@ export function EditCameraDialog({ camera, open, onOpenChange }: Props) {
                     />
                   )}
                 </FormField>
-                <FormField label="New camera password" id={`edit-camera-password-${camera.id}`}>
+                <FormField label="Camera password" id={`edit-camera-password-${camera.id}`}>
                   {(field) => (
                     <Input
                       {...field}
-                      type="password"
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
-                      placeholder={
-                        camera.has_credentials ? 'Leave blank to keep stored password' : ''
-                      }
-                      autoComplete="new-password"
+                      autoComplete="off"
+                      spellCheck={false}
                       disabled={clearPassword}
                     />
                   )}
@@ -494,15 +494,11 @@ export function EditCameraDialog({ camera, open, onOpenChange }: Props) {
                   {(field) => (
                     <Input
                       {...field}
-                      type="password"
                       value={tapoPassword}
                       onChange={(event) => setTapoPassword(event.target.value)}
-                      placeholder={
-                        camera.has_tapo_credentials
-                          ? 'Leave blank to keep stored control password'
-                          : 'Optional — required by some newer firmware'
-                      }
-                      autoComplete="new-password"
+                      placeholder="Optional — required by some newer firmware"
+                      autoComplete="off"
+                      spellCheck={false}
                       disabled={clearTapoPassword}
                     />
                   )}

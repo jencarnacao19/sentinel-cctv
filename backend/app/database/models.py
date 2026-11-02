@@ -340,7 +340,7 @@ class Camera(Base):
     """Fernet token. Never leaves the process in plaintext."""
 
     encrypted_tapo_password: Mapped[str | None] = mapped_column(Text, nullable=True)
-    """Optional Tapo account password for LAN control. Encrypted and never returned."""
+    """Optional Tapo account password for LAN control. Encrypted; only the admin sees it."""
 
     tapo_child_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
 

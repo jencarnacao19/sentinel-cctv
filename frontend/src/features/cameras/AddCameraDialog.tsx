@@ -573,7 +573,7 @@ export function AddCameraDialog({ open, onOpenChange }: Props) {
             )}
 
             <p className="text-xs leading-5 text-(--color-fg-subtle)">
-              Credentials are encrypted before storage and never shown again.
+              Credentials are encrypted before storage.
               {battery
                 ? ' Direct Stream and clip traffic stays on the LAN, and no continuous recorder is started.'
                 : ''}

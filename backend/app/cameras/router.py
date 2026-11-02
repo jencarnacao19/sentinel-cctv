@@ -21,6 +21,7 @@ from app.cameras import tapo as tapo_control
 from app.cameras import tapo_battery as tapo_battery_control
 from app.cameras.schemas import (
     CameraCreate,
+    CameraCredentialsResponse,
     CameraIdentityResponse,
     CameraRecordingRequest,
     CameraRecordingResponse,
@@ -45,6 +46,7 @@ from app.database.session import get_session
 from app.logging_config import get_logger
 from app.motion.manager import get_manager as get_motion_manager
 from app.recording.manager import get_manager as get_recording_manager
+from app.security.crypto import decrypt_secret
 from app.streaming.client import Go2RtcUnavailableError
 from app.streaming.config import build_streams, stream_names
 from app.streaming.manager import get_manager
@@ -222,6 +224,28 @@ async def test_stream(
 @router.get("/{camera_id}", response_model=CameraResponse, summary="Get a camera")
 async def get_camera(camera_id: str, _: CurrentPrincipal, session: SessionDep) -> CameraResponse:
     return CameraResponse.from_camera(await _load(session, camera_id))
+
+
+@router.get(
+    "/{camera_id}/credentials",
+    response_model=CameraCredentialsResponse,
+    summary="Show the stored camera credentials",
+)
+async def get_camera_credentials(
+    camera_id: str, _: AdminPrincipal, session: SessionDep, response: Response
+) -> CameraCredentialsResponse:
+    # A signed-in administrator only: AdminPrincipal refuses API tokens and viewers.
+    camera = await _load(session, camera_id)
+    response.headers["Cache-Control"] = "no-store"
+    return CameraCredentialsResponse(
+        username=camera.username,
+        password=decrypt_secret(camera.encrypted_password) if camera.encrypted_password else None,
+        tapo_password=(
+            decrypt_secret(camera.encrypted_tapo_password)
+            if camera.encrypted_tapo_password
+            else None
+        ),
+    )
 
 
 @router.patch("/{camera_id}", response_model=CameraResponse, summary="Update a camera")

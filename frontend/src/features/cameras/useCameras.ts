@@ -28,6 +28,17 @@ export function useCreateCamera() {
   })
 }
 
+/** The stored passwords, fetched while an edit dialog is open and dropped after. */
+export function useCameraCredentials(id: string, open: boolean) {
+  return useQuery({
+    queryKey: queryKeys.cameraCredentials(id),
+    queryFn: () => camerasApi.credentials(id),
+    enabled: open,
+    staleTime: 0,
+    gcTime: 0,
+  })
+}
+
 export function useUpdateCamera() {
   const queryClient = useQueryClient()
   return useMutation({

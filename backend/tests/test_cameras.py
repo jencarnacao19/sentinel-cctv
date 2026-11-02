@@ -72,6 +72,29 @@ class TestCreate:
         detail = await admin_client.get(f"/api/v1/cameras/{response.json()['id']}")
         assert "hunter2" not in detail.text
 
+    async def test_the_administrator_alone_can_read_the_stored_credentials(
+        self, admin_client: AsyncClient, client: AsyncClient
+    ) -> None:
+        created = await admin_client.post(
+            "/api/v1/cameras", json={**CAMERA_PAYLOAD, "tapo_password": "cloud-secret"}
+        )
+        url = f"/api/v1/cameras/{created.json()['id']}/credentials"
+        response = await admin_client.get(url)
+        assert response.status_code == 200
+        assert response.headers["cache-control"] == "no-store"
+        assert response.json() == {
+            "username": "admin",
+            "password": "hunter2",
+            "tapo_password": "cloud-secret",
+        }
+
+        token = await admin_client.post("/api/v1/auth/tokens", json={"name": "ha"})
+        bearer = {"Authorization": f"Bearer {token.json()['token']}"}
+        client.headers.pop("Authorization", None)
+        client.cookies.clear()
+        assert (await client.get(url, headers=bearer)).status_code == 403
+        assert (await client.get(url)).status_code == 401
+
     async def test_password_is_encrypted_at_rest(self, admin_client: AsyncClient) -> None:
         await admin_client.post("/api/v1/cameras", json=CAMERA_PAYLOAD)
         camera = await _stored_camera()

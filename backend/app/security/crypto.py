@@ -4,7 +4,8 @@ Camera passwords must survive a restart (recording is unattended), so they
 cannot be one-way hashed. They are encrypted with a key derived from a local
 secret generated at install time and stored with 0600 permissions next to the
 database. The plaintext is only ever decrypted in-process to build an FFmpeg or
-go2rtc argument list -- it is never returned by the API or written to a log.
+go2rtc argument list, or to show it to the signed-in administrator -- it is
+never written to a log.
 """
 
 from __future__ import annotations

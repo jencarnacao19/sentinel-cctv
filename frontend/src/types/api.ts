@@ -125,7 +125,7 @@ export interface Camera {
   main_stream_url: string | null
   sub_stream_url: string | null
   username: string | null
-  /** The password itself is never returned by the API. */
+  /** The password itself only comes from `GET /cameras/{id}/credentials`. */
   has_credentials: boolean
   /** Whether a separate encrypted Tapo control password is stored. */
   has_tapo_credentials: boolean
@@ -170,6 +170,13 @@ export interface ViewerCamera {
   ptz_supported: boolean
   ptz_zoom_supported: boolean
   stream: CameraStreamInfo
+}
+
+/** The stored credentials in plain text; only the signed-in administrator gets them. */
+export interface CameraCredentials {
+  username: string | null
+  password: string | null
+  tapo_password: string | null
 }
 
 export interface CameraCreate {

@@ -16,7 +16,7 @@ import {
 import { FormField, FormSection } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import { useUpdateCamera } from '@/features/cameras/useCameras'
+import { useCameraCredentials, useUpdateCamera } from '@/features/cameras/useCameras'
 import { useTestTapoBattery } from '@/features/cameras/useTapoBattery'
 import { errorText } from '@/lib/errors'
 import type { Camera, CameraUpdate } from '@/types/api'
@@ -43,6 +43,8 @@ interface Props {
  */
 export function TapoBatteryConfigureDialog({ camera, open, onOpenChange }: Props) {
   const update = useUpdateCamera()
+  const credentials = useCameraCredentials(camera.id, open)
+  const storedPassword = credentials.data?.tapo_password ?? ''
   const testConnection = useTestTapoBattery()
   const resetUpdate = update.reset
   const resetTestConnection = testConnection.reset
@@ -65,13 +67,13 @@ export function TapoBatteryConfigureDialog({ camera, open, onOpenChange }: Props
     setTopology(camera.tapo_child_id ? 'hub' : 'standalone')
     setUsername(camera.username && camera.username !== 'admin' ? camera.username : '')
     setChildId(camera.tapo_child_id ?? '')
-    setPassword('')
+    setPassword(storedPassword)
     setClearPassword(false)
     setEnabled(camera.enabled)
     setTestedFingerprint(null)
     resetUpdate()
     resetTestConnection()
-  }, [camera, open, resetTestConnection, resetUpdate])
+  }, [camera, open, resetTestConnection, resetUpdate, storedPassword])
 
   const effectiveChildId = topology === 'hub' ? childId.trim() : ''
   const effectiveUsername = topology === 'hub' ? username.trim() : ''
@@ -81,7 +83,7 @@ export function TapoBatteryConfigureDialog({ camera, open, onOpenChange }: Props
     host.trim() !== camera.host ||
     (effectiveChildId || null) !== camera.tapo_child_id ||
     effectiveUsername !== storedUsername ||
-    password.length > 0
+    password !== storedPassword
   const connectionProven = !connectionChanged || testedFingerprint === fingerprint
 
   function invalidateConnectionProof() {
@@ -113,7 +115,7 @@ export function TapoBatteryConfigureDialog({ camera, open, onOpenChange }: Props
       username: effectiveUsername || 'admin',
     }
     if (clearPassword) payload.tapo_password = ''
-    else if (password) payload.tapo_password = password
+    else if (password && password !== storedPassword) payload.tapo_password = password
 
     await update.mutateAsync({ id: camera.id, payload })
     onOpenChange(false)
@@ -285,7 +287,7 @@ export function TapoBatteryConfigureDialog({ camera, open, onOpenChange }: Props
               ) : null}
 
               <FormField
-                label="New Tapo account password"
+                label="Tapo account password"
                 id={`battery-password-${camera.id}`}
                 hint={
                   <>
@@ -297,16 +299,13 @@ export function TapoBatteryConfigureDialog({ camera, open, onOpenChange }: Props
                 {(field) => (
                   <Input
                     {...field}
-                    type="password"
                     value={password}
                     onChange={(event) => {
                       setPassword(event.target.value)
                       invalidateConnectionProof()
                     }}
-                    placeholder={
-                      camera.has_tapo_credentials ? 'Leave blank to keep the stored password' : ''
-                    }
-                    autoComplete="new-password"
+                    autoComplete="off"
+                    spellCheck={false}
                     disabled={clearPassword}
                   />
                 )}
@@ -327,8 +326,8 @@ export function TapoBatteryConfigureDialog({ camera, open, onOpenChange }: Props
 
             {connectionChanged && !connectionProven ? (
               <Alert variant="warning" title="Test the changed connection before saving">
-                Re-enter the Tapo app password and confirm that this address and child ID reach the
-                intended camera.
+                Confirm that this address, child ID and Tapo app password reach the intended
+                camera.
               </Alert>
             ) : null}
 

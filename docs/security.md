@@ -4,8 +4,9 @@
 
 - Passwords are hashed with **Argon2id**.
 - Camera credentials are **encrypted at rest** with a key derived from a local
-  secret created at install time, stored `0600`. They are never returned by the
-  API, never rendered in the interface and never written to a log.
+  secret created at install time, stored `0600`. The signed-in administrator
+  can read them in the camera's Edit dialog; viewers and API tokens cannot, and
+  they are never written to a log.
 - Every log line passes through a **redaction filter** that removes RTSP
   userinfo, `password=`/`token:` pairs, `Authorization` values and Sentinel API
   tokens.
@@ -173,7 +174,7 @@ movement-timeout field. If Tapo patrol recovery is enabled for a camera,
 Sentinel restarts the selected patrol only after that safety-critical ONVIF
 stop. It first reuses the Camera Account credentials already encrypted at rest.
 Firmware that requires `admin` plus the TP-Link cloud password can use a
-separate write-only control credential, encrypted with the same local Fernet
+separate control credential, encrypted with the same local Fernet
 key and used only for the camera's proprietary LAN request. An authentication
 failure backs off for 30 minutes to avoid prolonging the camera's own temporary
 lockout, and never changes the successful stop response.
@@ -213,8 +214,9 @@ this is an acceptable trade, not an oversight.
 with `0600` permissions next to the database
 (`backend/app/security/crypto.py`). The plaintext password is only ever
 decrypted in-process, to build an FFmpeg argument list or go2rtc's
-configuration — never returned by the API, never rendered in the interface,
-never written to a log. go2rtc's own generated configuration file
+configuration, or for `GET /cameras/{id}/credentials`, which only a signed-in
+administrator can call (not a viewer, not an API token) and which the Edit
+dialog shows. It is never written to a log. go2rtc's own generated configuration file
 (`go2rtc.yaml`) necessarily contains camera passwords in plaintext — go2rtc
 has no other way to authenticate to an RTSP source — so that file is written
 with restricted permissions, excluded from diagnostics and backups, and never

@@ -75,6 +75,11 @@ describe('EditCameraDialog', () => {
   it('saves the selected Tapo patrol direction as part of the camera configuration', async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      if (url === '/api/v1/cameras/cam-1/credentials') {
+        return Promise.resolve(
+          json({ username: 'admin', password: 'cam-secret', tapo_password: null }),
+        )
+      }
       expect(url).toBe('/api/v1/cameras/cam-1')
       expect(init?.method).toBe('PATCH')
       return Promise.resolve(json(CAMERA))
@@ -86,6 +91,8 @@ describe('EditCameraDialog', () => {
     renderWithProviders(
       <EditCameraDialog camera={CAMERA} open onOpenChange={onOpenChange} />,
     )
+    // The administrator sees the stored password as it is.
+    await waitFor(() => expect(screen.getByLabelText('Camera password')).toHaveValue('cam-secret'))
 
     await user.selectOptions(
       screen.getByLabelText('Resume Tapo patrol after PTZ'),
@@ -101,10 +108,14 @@ describe('EditCameraDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Save configuration' }))
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const patches = fetchMock.mock.calls.filter(([, init]) => init?.method === 'PATCH')
+    expect(patches).toHaveLength(1)
 
-    const body = fetchMock.mock.calls[0]?.[1]?.body
-    expect(JSON.parse(typeof body === 'string' ? body : '{}')).toMatchObject({
+    const sent = patches[0]?.[1]?.body
+    const body = JSON.parse(typeof sent === 'string' ? sent : '{}') as Record<string, unknown>
+    // An unchanged password is not sent back.
+    expect(body).not.toHaveProperty('password')
+    expect(body).toMatchObject({
       tapo_patrol_mode: 'horizontal',
       tapo_password: 'tapo-app-secret',
       recording_profile: 'normalised',

@@ -9,6 +9,7 @@ import type {
   BuildChannelState,
   Camera,
   CameraCreate,
+  CameraCredentials,
   CameraIdentity,
   CameraRecordingResult,
   CameraTestResult,
@@ -126,6 +127,7 @@ export const camerasApi = {
   list: (enabledOnly = false) =>
     api.get<Camera[]>(`/cameras${enabledOnly ? '?enabled_only=true' : ''}`),
   get: (id: string) => api.get<Camera>(`/cameras/${id}`),
+  credentials: (id: string) => api.get<CameraCredentials>(`/cameras/${id}/credentials`),
   create: (payload: CameraCreate) => api.post<Camera>('/cameras', payload),
   update: (id: string, payload: CameraUpdate) => api.patch<Camera>(`/cameras/${id}`, payload),
   remove: (id: string) => api.delete<void>(`/cameras/${id}`),
@@ -327,6 +329,7 @@ export const queryKeys = {
   // or consume one of the vendor pool's scarce workers.
   cameras: ['cameras', 'list'] as const,
   camera: (id: string) => ['cameras', 'detail', id] as const,
+  cameraCredentials: (id: string) => ['cameras', 'credentials', id] as const,
   cameraPtzSetup: (id: string) => ['cameras', 'detail', id, 'ptz-setup'] as const,
   cameraTapoCapabilities: (id: string) =>
     ['cameras', 'detail', id, 'tapo-capabilities'] as const,

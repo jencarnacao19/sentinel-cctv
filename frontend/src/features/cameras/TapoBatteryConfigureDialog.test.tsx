@@ -53,7 +53,7 @@ describe('TapoBatteryConfigureDialog', () => {
 
     expect(screen.getByLabelText('Connection type')).toHaveValue('standalone')
     expect(screen.queryByLabelText(/H200 username/i)).not.toBeInTheDocument()
-    await user.type(screen.getByLabelText('New Tapo account password'), 'correct-app-password')
+    await user.type(screen.getByLabelText('Tapo account password'), 'correct-app-password')
     expect(screen.getByRole('button', { name: 'Save battery camera' })).toBeDisabled()
     expect(screen.getByText(/not the Camera Account or RTSP password/i)).toBeInTheDocument()
 
@@ -75,6 +75,54 @@ describe('TapoBatteryConfigureDialog', () => {
       tapo_child_id: null,
       tapo_password: 'correct-app-password',
     })
+  })
+
+  it('shows the stored password and tests a new address with it', async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      if (url === `/api/v1/cameras/${batteryCamera.id}/credentials`) {
+        return Promise.resolve(
+          json({ username: 'admin', password: null, tapo_password: 'stored-app-password' }),
+        )
+      }
+      if (url === '/api/v1/cameras/tapo-battery/test') {
+        return Promise.resolve(json({ model: 'TC82', read_at: '2026-08-28T20:00:00Z' }))
+      }
+      if (url === `/api/v1/cameras/${batteryCamera.id}` && init?.method === 'PATCH') {
+        return Promise.resolve(json(batteryCamera))
+      }
+      return Promise.reject(new Error(`Unexpected request to ${url}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const onOpenChange = vi.fn()
+    const user = userEvent.setup()
+
+    renderWithProviders(
+      <TapoBatteryConfigureDialog camera={batteryCamera} open onOpenChange={onOpenChange} />,
+    )
+    const password = screen.getByLabelText('Tapo account password')
+    await waitFor(() => expect(password).toHaveValue('stored-app-password'))
+
+    const host = screen.getByLabelText(/address/i)
+    await user.clear(host)
+    await user.type(host, '192.168.50.211')
+    await user.click(screen.getByRole('button', { name: 'Test connection' }))
+    await screen.findByText('Local connection confirmed')
+    await user.click(screen.getByRole('button', { name: 'Save battery camera' }))
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+
+    const tested = fetchMock.mock.calls.find(([input]) => input === '/api/v1/cameras/tapo-battery/test')
+    const testBody = tested?.[1]?.body
+    expect(JSON.parse(typeof testBody === 'string' ? testBody : '{}')).toMatchObject({
+      host: '192.168.50.211',
+      password: 'stored-app-password',
+    })
+    const saved = fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH')
+    const saveBody = saved?.[1]?.body
+    const sent = JSON.parse(typeof saveBody === 'string' ? saveBody : '{}') as Record<string, unknown>
+    expect(sent).toMatchObject({ host: '192.168.50.211' })
+    // The password did not change, so it is not sent again.
+    expect(sent).not.toHaveProperty('tapo_password')
   })
 
   it('displays discovered hub cameras and selects child ID', async () => {
@@ -111,7 +159,7 @@ describe('TapoBatteryConfigureDialog', () => {
 
     await user.selectOptions(screen.getByLabelText('Connection type'), 'hub')
     expect(screen.getByLabelText(/H200 username/i)).toBeInTheDocument()
-    await user.type(screen.getByLabelText('New Tapo account password'), 'hub-password')
+    await user.type(screen.getByLabelText('Tapo account password'), 'hub-password')
     await user.click(screen.getByRole('button', { name: 'Test connection' }))
 
     expect(await screen.findByText(/1 hub camera\(s\) detected/i)).toBeInTheDocument()
@@ -149,7 +197,7 @@ describe('TapoBatteryConfigureDialog', () => {
       />,
     )
 
-    await user.type(screen.getByLabelText('New Tapo account password'), 'bad-password')
+    await user.type(screen.getByLabelText('Tapo account password'), 'bad-password')
     await user.click(screen.getByRole('button', { name: 'Test connection' }))
 
     const alert = await screen.findByText(/rejected the credentials/)

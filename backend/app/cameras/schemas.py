@@ -271,7 +271,7 @@ class CameraResponse(CameraBase):
     sub_stream_url: str | None
     username: str | None
     has_credentials: bool
-    """True when a password is stored. The password itself is never returned."""
+    """True when a password is stored. Only ``GET /cameras/{id}/credentials`` returns it."""
     has_tapo_credentials: bool
     tapo_child_id: str | None
     """True when a separate Tapo control password is stored; never returns it."""
@@ -450,6 +450,14 @@ class StreamTestRequest(BaseModel):
     def _check_url(self) -> Self:
         _validate_url(self.url, "url")
         return self
+
+
+class CameraCredentialsResponse(BaseModel):
+    """The stored credentials in plain text, for the signed-in administrator only."""
+
+    username: str | None
+    password: str | None
+    tapo_password: str | None
 
 
 class StreamTestResponse(BaseModel):
