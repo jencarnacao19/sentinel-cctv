@@ -11,6 +11,7 @@ import {
   House,
   LayoutGrid,
   Settings,
+  Users,
   Video,
   Waypoints,
 } from 'lucide-react'
@@ -75,6 +76,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/admin/automations', label: 'Automations', icon: Bot, section: 'Configure' },
   { to: '/admin/home-assistant', label: 'Home Assistant', shortLabel: 'HA', icon: House, section: 'Configure' },
   { to: '/admin/system', label: 'System', icon: Cpu, section: 'Server' },
+  { to: '/admin/users', label: 'Users', icon: Users, section: 'Server' },
   { to: '/admin/settings', label: 'Settings', icon: Settings, section: 'Server' },
 ]
 

@@ -13,6 +13,7 @@ import { CameraHealthPage } from '@/features/reliability/CameraHealthPage'
 import { AutomationsPage } from '@/features/automations/AutomationsPage'
 import { HomeAssistantPage } from '@/features/home-assistant/HomeAssistantPage'
 import { SettingsPage } from '@/features/settings/SettingsPage'
+import { UsersPage } from '@/features/accounts/UsersPage'
 import { WallPage } from '@/features/wall/WallPage'
 import { StoragePage } from '@/features/storage/StoragePage'
 import { TimelinePage, ViewerTimelinePage } from '@/features/timeline/TimelinePage'
@@ -155,6 +156,7 @@ export function App() {
         <Route path="home-assistant" element={<HomeAssistantPage />} />
         <Route path="wall" element={<WallPage />} />
         <Route path="automations" element={<AutomationsPage />} />
+        <Route path="users" element={<UsersPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

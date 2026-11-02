@@ -25,7 +25,7 @@ from the interface.
 
 ## Viewer accounts
 
-**Settings → Viewer accounts** (or the setup's family step) creates accounts
+**Users** (or the setup's family step) creates accounts
 for the people who only watch. They sign in at Sentinel's address and see the
 live cameras, recordings and saved clips. They cannot change anything, and
 they never reach the administration pages.

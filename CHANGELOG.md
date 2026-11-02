@@ -22,6 +22,12 @@ requirements are described in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
   the build the server runs, through the same host helper as the build switch,
   and says whether there was one. Run the installer with `--update` once to get
   the new helper.
+- **Users tab.** Viewer accounts moved out of Settings into their own page.
+- **The administrator sees the stored camera passwords.** The camera and
+  battery-camera Edit dialogs show the username, camera password and Tapo
+  password as they are (`GET /cameras/{id}/credentials`, signed-in
+  administrator only, never an API token or a viewer). A Tapo battery camera
+  can move to a new address and be tested with the password it already has.
 
 ### Changed
 
@@ -30,7 +36,10 @@ requirements are described in [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
   now play in Home Assistant's iPhone app and Safari (natively) and start as
   soon as the first few seconds arrive on a computer, H.265 cameras included
   where the browser can decode them. Before, each minute of footage was
-  downloaded whole first, and iPhones could not play recordings at all.
+  downloaded whole first, and iPhones could not play recordings at all. On a
+  phone that will not start playback with sound by itself it starts muted; a
+  new speaker button turns sound on. H.265 recordings are labelled `hvc1` for
+  Apple's players.
 - The dashboard no longer warns that the recording disk is nearly full. A full
   disk is the normal state: retention removes the oldest footage. A recorder
   that stops is still reported.
